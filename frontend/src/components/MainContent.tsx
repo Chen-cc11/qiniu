@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { GenerationMode, ModelParameters, GalleryItem } from '../../types';
+import { GenerationMode, ModelParameters, GalleryItem } from '../types';
 import ModelViewer from './ModelViewer';
+import { textToModel, imageToModel, uploadImage, getTaskStatus } from '../services/api';
 
 const TabButton: React.FC<{
     label: string;
@@ -24,8 +25,6 @@ interface MainContentProps {
     onGenerationComplete: (item: GalleryItem) => void;
 }
 
-const API_BASE_URL = '/api'; // 使用相对路径以适配后端代理
-
 const MainContent: React.FC<MainContentProps> = ({ params, onGenerationComplete }) => {
     const [mode, setMode] = useState<GenerationMode>(GenerationMode.TEXT);
     const [prompt, setPrompt] = useState('A modern sofa, velour material, L-shaped design, metal base');
@@ -38,81 +37,62 @@ const MainContent: React.FC<MainContentProps> = ({ params, onGenerationComplete 
     const [modelUrl, setModelUrl] = useState<string | null>(null);
     const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
     const [currentTaskID, setCurrentTaskID] = useState<string | null>(null);
+    const pollingIntervalRef = useRef<number | null>(null);
 
+    // Effect to handle task status polling
     useEffect(() => {
-        if (!currentTaskID) {
-            return;
-        }
+        const pollStatus = async () => {
+            if (!currentTaskID) return;
 
-        setProgress(0);
-        setGenerationStatusText('任务已创建，等待处理...');
-
-        const intervalId = setInterval(async () => {
             try {
-                const response = await fetch(`${API_BASE_URL}/tasks/status/${currentTaskID}`);
-                if (!response.ok) {
-                    throw new Error(`服务器错误: ${response.status}`);
-                }
-                const result = await response.json();
-                
-                if (result.code !== 0 || !result.data) {
-                    // 如果错误信息是任务不存在或已过期，则停止轮询
-                    if (result.msg && (result.msg.includes('not found') || result.msg.includes('expired'))) {
-                         clearInterval(intervalId);
-                         setGenerationStatusText(`任务查询失败: ${result.msg}`);
-                         setIsGenerating(false);
-                         setCurrentTaskID(null);
-                         return;
-                    }
-                    throw new Error(result.msg || '获取任务状态失败');
-                }
-
+                const result = await getTaskStatus(currentTaskID);
                 const taskStatus = result.data;
-
-                if (taskStatus.status === 'completed') {
-                    clearInterval(intervalId);
+                
+                if (taskStatus.status === 'completed' && taskStatus.result) {
+                    if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
                     setProgress(100);
                     setGenerationStatusText('模型生成完成!');
-                    // 后端返回的可能是相对路径，需要拼接
-                    const finalModelUrl = taskStatus.result.modelURL.startsWith('http') ? taskStatus.result.modelURL : `${window.location.origin}${taskStatus.result.modelURL}`;
-                    setModelUrl(finalModelUrl);
-                    setDownloadUrl(finalModelUrl); 
+                    setModelUrl(taskStatus.result.modelURL);
+                    setDownloadUrl(taskStatus.result.modelURL);
 
                     const newHistoryItem: GalleryItem = {
                         id: Date.now(),
                         title: (mode === GenerationMode.TEXT ? prompt : uploadedImageFile?.name || 'Image generation').substring(0, 20) + '...',
                         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                         details: params.outputFormat,
-                        imageUrl: taskStatus.result.thumbnailURL || `https://picsum.photos/seed/${Date.now()}/200/200`
+                        imageUrl: taskStatus.result.thumbnailURL || `https://picsum.photos/seed/${Date.now()}/200/200`,
+                        modelUrl: taskStatus.result.modelURL,
                     };
                     onGenerationComplete(newHistoryItem);
                     setIsGenerating(false);
                     setCurrentTaskID(null);
                 } else if (taskStatus.status === 'failed') {
-                    clearInterval(intervalId);
+                    if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
                     setGenerationStatusText(`生成失败: ${taskStatus.error || '未知错误'}`);
                     setIsGenerating(false);
                     setCurrentTaskID(null);
                 } else {
                     setProgress(taskStatus.progress || 0);
-                    const statusMap: { [key: string]: string } = {
-                        'pending': '排队中',
-                        'processing': '模型生成中'
-                    };
+                    const statusMap: { [key: string]: string } = { 'pending': '排队中', 'processing': '模型生成中' };
                     const currentStatusText = statusMap[taskStatus.status] || taskStatus.status;
                     setGenerationStatusText(`${currentStatusText} (${taskStatus.progress || 0}%)`);
                 }
             } catch (error) {
-                console.error('轮询失败:', error);
-                clearInterval(intervalId);
+                console.error('Polling failed:', error);
+                if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
                 setGenerationStatusText(`轮询异常: ${error instanceof Error ? error.message : String(error)}`);
                 setIsGenerating(false);
                 setCurrentTaskID(null);
             }
-        }, 5000); // 轮询间隔调整为5秒
+        };
 
-        return () => clearInterval(intervalId);
+        if (currentTaskID) {
+            pollingIntervalRef.current = window.setInterval(pollStatus, 3000);
+        }
 
+        return () => {
+            if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
+        };
     }, [currentTaskID, onGenerationComplete, prompt, params.outputFormat, mode, uploadedImageFile]);
 
     const handleGenerate = async () => {
@@ -127,76 +107,41 @@ const MainContent: React.FC<MainContentProps> = ({ params, onGenerationComplete 
             let taskId: string | null = null;
 
             if (mode === GenerationMode.TEXT) {
-                const apiParams = {
+                const payload = {
                     prompt: prompt,
                     faceLimit: Math.round(5000 + (params.precision / 100) * 95000),
-                    texture: true,
-                    pbr: true,
+                    texture: true, pbr: true,
                     textureQuality: params.textureQuality,
                     quad: params.outputFormat !== 'STL',
                 };
-
-                const response = await fetch(`${API_BASE_URL}/tasks/text-to-model`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(apiParams),
-                });
-                
-                const data = await response.json();
-                if (!response.ok || data.code !== 0 || !data.data?.taskID) {
-                    throw new Error(data.msg || `创建任务失败: ${response.statusText}`);
-                }
-                taskId = data.data.taskID;
-
+                const response = await textToModel(payload);
+                taskId = response.data.taskID;
             } else if (mode === GenerationMode.IMAGE && uploadedImageFile) {
                 setGenerationStatusText('正在上传图片...');
-                const formData = new FormData();
-                formData.append('file', uploadedImageFile);
-                
-                const uploadResponse = await fetch(`${API_BASE_URL}/upload`, {
-                    method: 'POST',
-                    body: formData,
-                });
-                
-                const uploadData = await uploadResponse.json();
-                const imageToken = uploadData.data?.imageToken;
-
-                if (!uploadResponse.ok || uploadData.code !== 0 || !imageToken) {
-                    throw new Error(uploadData.msg || '图片上传失败');
-                }
+                const uploadResponse = await uploadImage(uploadedImageFile);
+                const imageToken = uploadResponse.data.imageToken;
                 
                 setGenerationStatusText('图片上传成功，正在创建任务...');
-                const apiParams = {
+                const payload = {
                     fileToken: imageToken,
                     faceLimit: Math.round(5000 + (params.precision / 100) * 95000),
-                    texture: true,
-                    pbr: true,
-                    textureQuality: 'original_image', // Per backend logic
+                    texture: true, pbr: true,
+                    textureQuality: 'original_image' as const,
                     quad: params.outputFormat !== 'STL',
                 };
-                
-                const taskResponse = await fetch(`${API_BASE_URL}/tasks/image-to-model`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(apiParams),
-                });
-
-                const taskData = await taskResponse.json();
-                if (!taskResponse.ok || taskData.code !== 0 || !taskData.data?.taskID) {
-                    throw new Error(taskData.msg || '创建任务失败');
-                }
-                taskId = taskData.data.taskID;
+                const taskResponse = await imageToModel(payload);
+                taskId = taskResponse.data.taskID;
             }
 
             if (taskId) {
                 setCurrentTaskID(taskId);
+                setGenerationStatusText('任务已创建，等待处理...');
             } else {
                  setIsGenerating(false);
                  setGenerationStatusText('准备就绪');
             }
-
         } catch (error) {
-            console.error("生成请求失败:", error);
+            console.error("Generation request failed:", error);
             setGenerationStatusText(`请求失败: ${error instanceof Error ? error.message : String(error)}`);
             setIsGenerating(false);
         }
@@ -207,9 +152,7 @@ const MainContent: React.FC<MainContentProps> = ({ params, onGenerationComplete 
             const file = event.target.files[0];
             setUploadedImageFile(file);
             const reader = new FileReader();
-            reader.onloadend = () => {
-                setUploadedImagePreview(reader.result as string);
-            };
+            reader.onloadend = () => setUploadedImagePreview(reader.result as string);
             reader.readAsDataURL(file);
         }
     };
@@ -218,35 +161,23 @@ const MainContent: React.FC<MainContentProps> = ({ params, onGenerationComplete 
 
     const handleDownload = async () => {
         if (!downloadUrl) return;
-
         try {
-            // Use a fetch request to get the model file as a blob
             const response = await fetch(downloadUrl);
-            if (!response.ok) {
-                throw new Error(`下载模型失败: ${response.statusText}`);
-            }
+            if (!response.ok) throw new Error(`Download failed: ${response.statusText}`);
             const blob = await response.blob();
             
-            // Create a temporary link to trigger the download
             const link = document.createElement('a');
             link.href = URL.createObjectURL(blob);
-
             const fileExtension = params.outputFormat.toLowerCase();
-            const promptFileName = mode === GenerationMode.TEXT 
-                ? prompt.substring(0, 20).replace(/\s/g, '_')
-                : uploadedImageFile?.name.split('.')[0] || 'image_model';
-            
-            const fileName = `${promptFileName}.${fileExtension}`;
-            link.setAttribute('download', fileName);
+            const promptFileName = (mode === GenerationMode.TEXT ? prompt.substring(0, 20).replace(/\s/g, '_') : uploadedImageFile?.name.split('.')[0] || 'image_model');
+            link.setAttribute('download', `${promptFileName}.${fileExtension}`);
             document.body.appendChild(link);
             link.click();
-            
-            // Clean up the temporary link
             document.body.removeChild(link);
             URL.revokeObjectURL(link.href);
         } catch (error) {
-            console.error("下载失败:", error);
-            alert(`下载失败: ${error instanceof Error ? error.message : String(error)}`);
+            console.error("Download failed:", error);
+            alert(`Download failed: ${error instanceof Error ? error.message : String(error)}`);
         }
     };
 

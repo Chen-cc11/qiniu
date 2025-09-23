@@ -1,16 +1,19 @@
 import React from 'react';
-import { HOME_HISTORY_ITEMS } from '../constants';
-import GalleryCard from './GalleryCard.tsx';
+import GalleryCard from './GalleryCard';
+import { GalleryItem } from '../types';
 
+interface RightSidebarProps {
+    historyItems: GalleryItem[];
+}
 
-const RightSidebar: React.FC = () => {
+const RightSidebar: React.FC<RightSidebarProps> = ({ historyItems }) => {
     return (
         <aside className="w-[320px] flex flex-col space-y-4">
             <div className="bg-white p-4 rounded-2xl shadow-sm flex-grow">
                 <h3 className="text-lg font-bold mb-4">生成历史</h3>
-                {HOME_HISTORY_ITEMS.length > 0 ? (
+                {historyItems.length > 0 ? (
                     <div className="grid grid-cols-2 gap-4">
-                        {HOME_HISTORY_ITEMS.map(item => (
+                        {historyItems.map(item => (
                             <GalleryCard key={item.id} item={item} />
                         ))}
                     </div>
@@ -24,7 +27,7 @@ const RightSidebar: React.FC = () => {
                 )}
             </div>
             <div className="text-center">
-                <a href="#" className="text-sm font-medium text-gray-500 hover:text-gray-800">
+                <a href="#/my-works" className="text-sm font-medium text-gray-500 hover:text-gray-800">
                     查看全部生成记录 &rsaquo;
                 </a>
             </div>

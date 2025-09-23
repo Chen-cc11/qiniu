@@ -1,5 +1,5 @@
 import React from 'react';
-import { GalleryItem } from '../../types';
+import { GalleryItem } from '../types';
 
 const GalleryCard: React.FC<{ item: GalleryItem }> = ({ item }) => {
     return (

@@ -1,11 +1,11 @@
-import { ApiTaskResponse, ApiTaskStatusResponse, ApiUploadResponse, TextToModelPayload, ImageToModelPayload } from '../../types';
+import { ApiTaskResponse, ApiTaskStatusResponse, ApiUploadResponse, TextToModelPayload, ImageToModelPayload } from '../types';
 
 const API_BASE_URL = '/api';
 
 /**
- * 一个通用的fetch封装，用于处理API请求
+ * API调用的通用fetch封装
  * @param endpoint API端点
- * @param options fetch请求的配置
+ * @param options fetch选项
  * @returns Promise<T>
  */
 async function fetchApi<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
@@ -18,25 +18,24 @@ async function fetchApi<T>(endpoint: string, options: RequestInit = {}): Promise
   });
 
   if (!response.ok) {
-    // 尝试解析错误信息的JSON体
     try {
       const errorData = await response.json();
-      throw new Error(errorData.msg || `服务器错误: ${response.status} ${response.statusText}`);
+      throw new Error(errorData.msg || `Server error: ${response.status} ${response.statusText}`);
     } catch (e) {
-      throw new Error(`服务器错误: ${response.status} ${response.statusText}`);
+      throw new Error(`Server error: ${response.status} ${response.statusText}`);
     }
   }
 
   const result = await response.json();
   if (result.code !== 0) {
-    throw new Error(result.msg || 'API返回一个未知错误');
+    throw new Error(result.msg || 'API returned an unknown error');
   }
   return result as T;
 }
 
 /**
- * 创建一个文生图任务
- * @param payload 请求体
+ * 创建一个文本到模型的任务
+ * @param payload 请求负载
  * @returns 任务创建响应
  */
 export const textToModel = (payload: TextToModelPayload): Promise<ApiTaskResponse> => {
@@ -47,8 +46,8 @@ export const textToModel = (payload: TextToModelPayload): Promise<ApiTaskRespons
 };
 
 /**
- * 创建一个图生图任务
- * @param payload 请求体
+ * 创建一个图片到模型的任务
+ * @param payload 请求负载
  * @returns 任务创建响应
  */
 export const imageToModel = (payload: ImageToModelPayload): Promise<ApiTaskResponse> => {
@@ -68,7 +67,7 @@ export const uploadImage = async (file: File): Promise<ApiUploadResponse> => {
     const formData = new FormData();
     formData.append('file', file);
     
-    // 对于 FormData，我们不应该手动设置 Content-Type，浏览器会自动处理
+    // 对于FormData，我们不应该手动设置Content-Type；浏览器会自动处理。
     const response = await fetch(`${API_BASE_URL}/upload`, {
         method: 'POST',
         body: formData,
@@ -77,15 +76,15 @@ export const uploadImage = async (file: File): Promise<ApiUploadResponse> => {
     if (!response.ok) {
       try {
         const errorData = await response.json();
-        throw new Error(errorData.msg || `服务器错误: ${response.status} ${response.statusText}`);
+        throw new Error(errorData.msg || `Server error: ${response.status} ${response.statusText}`);
       } catch (e) {
-        throw new Error(`服务器错误: ${response.status} ${response.statusText}`);
+        throw new Error(`Server error: ${response.status} ${response.statusText}`);
       }
     }
     
     const result = await response.json();
     if (result.code !== 0) {
-        throw new Error(result.msg || 'API返回一个未知错误');
+        throw new Error(result.msg || 'API returned an unknown error');
     }
     return result as ApiUploadResponse;
 };

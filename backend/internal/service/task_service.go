@@ -19,14 +19,14 @@ import (
 type TaskService struct {
 	tripoClient *tripo.TripoClient
 	taskRepo    repository.TaskRepository
-	cache       cache.CacheManager
+	cache       *cache.CacheManager
 	taskQueue   chan *models.Task
 	workers     int
 	mu          sync.RWMutex
 }
 
 // NewTaskService 创建新的任务服务
-func NewTaskService(tripoClient *tripo.TripoClient, taskRepo repository.TaskRepository, cache cache.CacheManager, workers int) *TaskService {
+func NewTaskService(tripoClient *tripo.TripoClient, taskRepo repository.TaskRepository, cache *cache.CacheManager, workers int) *TaskService {
 	service := &TaskService{
 		tripoClient: tripoClient,
 		taskRepo:    taskRepo,

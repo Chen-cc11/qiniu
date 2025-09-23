@@ -136,6 +136,19 @@ type Task struct {
 	ErrorMessage string    `json:"errorMessage,omitempty" form:"errorMessage"`
 	CreateAt     time.Time `json:"createAt,omitempty" form:"createAt"`
 	UpdateAt     time.Time `json:"updateAt,omitempty" form:"updateAt"`
+	User         User      `json:"user,omitempty" form:"user" gorm:"foreignKey:user_id;references:id"`
+}
 
-	User User `json:"user,omitempty" form:"user" gorm:"foreignKey:user_id;references:id"`
+// Feedback
+//
+// @Description: 用户反馈模型
+type Feedback struct {
+	ID        string    `json:"id" gorm:"primaryKey;type:uuid;default:gen_random_uuid()"`
+	TaskID    string    `json:"task_id" gorm:"not null"`
+	UserID    string    `json:"user_id" gorm:"not null"`
+	Rating    int       `json:"rating" gorm:"not null"` // 1-5分
+	Comment   string    `json:"comment"`
+	CreatedAt time.Time `json:"created_at"`
+	Task      Task      `json:"task" gorm:"foreignKey:TaskID"`
+	User      User      `json:"user" gorm:"foreignKey:UserID"`
 }

@@ -1,4 +1,4 @@
-import { ApiTaskResponse, ApiTaskStatusResponse, ApiUploadResponse, TextToModelPayload, ImageToModelPayload } from '../types';
+import { ApiTaskResponse, ApiTaskStatusResponse, ApiUploadResponse, TextToModelPayload, ImageToModelPayload } from '../../types';
 
 const API_BASE_URL = '/api';
 

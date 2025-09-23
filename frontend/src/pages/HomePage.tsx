@@ -1,11 +1,11 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import LeftSidebar from '../components/LeftSidebar';
 import MainContent from '../components/MainContent';
 import RightSidebar from '../components/RightSidebar';
-import { ModelParameters, GalleryItem } from '../types';
+import { ModelParameters } from '../../types';
 
 const HomePage: React.FC = () => {
-  const [params, setParams] = useState<ModelParameters>({
+  const [params] = useState<ModelParameters>({
     precision: 50,
     textureQuality: 'standard',
     material: 'glossy',
@@ -13,19 +13,15 @@ const HomePage: React.FC = () => {
     outputFormat: 'GLB',
   });
 
-  const [historyItems, setHistoryItems] = useState<GalleryItem[]>([]);
-
-  const handleGenerationComplete = useCallback((item: GalleryItem) => {
-    setHistoryItems(prev => [item, ...prev]);
-  }, []);
+  
 
   return (
     <main className="flex flex-grow p-6 gap-6 overflow-hidden">
-      <LeftSidebar params={params} setParams={setParams} />
+      <LeftSidebar />
       <div className="flex-1 flex flex-col overflow-y-auto min-w-0">
-          <MainContent params={params} onGenerationComplete={handleGenerationComplete} />
+          <MainContent params={params} onGenerationComplete={() => {}} />
       </div>
-      <RightSidebar historyItems={historyItems} />
+      <RightSidebar />
     </main>
   );
 };

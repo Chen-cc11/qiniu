@@ -1,5 +1,4 @@
 import React from 'react';
-import { GalleryItem } from '../types';
 import { HOME_HISTORY_ITEMS } from '../constants';
 import GalleryCard from './GalleryCard.tsx';
 

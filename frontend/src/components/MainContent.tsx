@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { GenerationMode, ModelParameters, GalleryItem } from '../types';
+import { GenerationMode, ModelParameters, GalleryItem } from '../../types';
 import ModelViewer from './ModelViewer';
 
 const TabButton: React.FC<{

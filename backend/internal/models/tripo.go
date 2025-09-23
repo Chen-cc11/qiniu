@@ -14,6 +14,7 @@ type TextToModelRequest struct {
 	PBR            bool   `json:"pbr,omitempty" form:"pbr"`                       // 是否生成PBR贴图，默认为True
 	ModelSeed      int    `json:"modelSeed,omitempty" form:"modelSeed"`           // 模型生成随机种子
 	TextureSeed    int    `json:"textureSeed,omitempty" form:"textureSeed"`       // 贴图生成随机种子
+	TextureQuality string `json:"textureQuality,omitempty" form:"textureQuality"` // 贴图质量，可选：standard, detailed
 	Style          string `json:"style,omitempty" form:"style"`                   // 风格化类型
 	AutoSize       bool   `json:"autoSize,omitempty" form:"autoSize"`             // 是否自动缩放到真实世界尺寸（米）
 	Quad           bool   `json:"quad,omitempty" form:"quad"`                     // 是否输出四边面网格
@@ -93,6 +94,18 @@ type TripoUploadResponse struct {
 	Data struct {
 		ImageToken string `json:"imageToken" form:"imageToken"`
 	} `json:"data" form:"data"`
+	Msg string `json:"msg,omitempty" form:"msg"`
+}
+
+// TripoBalanceResponse
+//
+// @Description: Tripo3D 余额响应
+type TripoBalanceResponse struct {
+	Code int `json:"code" form:"code"`
+	Data struct {
+		Balance string `json:"balance" form:"balance"`
+		Frozen  string `json:"frozen" form:"frozen"`
+	} `json:"data,omitempty" form:"data"`
 	Msg string `json:"msg,omitempty" form:"msg"`
 }
 

@@ -1,6 +1,15 @@
 import React, { Suspense, useEffect, useRef, useState } from 'react';
-import { Canvas } from '@react-three/fiber';
+import { Canvas, ThreeElements } from '@react-three/fiber';
 import { Stage, OrbitControls, useGLTF, Html, useProgress } from '@react-three/drei';
+
+// 解决: 为了处理 TypeScript 中 react-three-fiber 的自定义 JSX 元素 (如 <mesh>, <primitive>) 报错的问题,
+// 我们必须扩展全局的 JSX.IntrinsicElements 接口，使其包含来自 `ThreeElements` 的类型定义。
+// 这是让 TypeScript 识别 R3F 组件库词汇的标准方法。
+declare global {
+    namespace JSX {
+        interface IntrinsicElements extends ThreeElements {}
+    }
+}
 
 const Model: React.FC<{ url: string }> = ({ url }) => {
     const { scene } = useGLTF(url);
@@ -13,7 +22,7 @@ const Loader: React.FC = () => {
         <Html center>
             <div className="text-white text-center">
                 <div className="text-xl font-bold">{progress.toFixed(1)} %</div>
-                <div className="text-sm">Loading model...</div>
+                <div className="text-sm">模型加载中...</div>
             </div>
         </Html>
     );
@@ -45,7 +54,7 @@ const ModelViewer: React.FC<{ modelUrl: string | null }> = ({ modelUrl }) => {
         if (!element) return;
         if (!document.fullscreenElement) {
             element.requestFullscreen().catch(err => {
-                alert(`Error attempting to enable full-screen mode: ${err.message} (${err.name})`);
+                alert(`进入全屏模式失败: ${err.message} (${err.name})`);
             });
         } else {
             document.exitFullscreen();

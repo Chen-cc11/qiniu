@@ -2,18 +2,19 @@ import React, { useState } from 'react';
 import LeftSidebar from '../components/LeftSidebar';
 import MainContent from '../components/MainContent';
 import RightSidebar from '../components/RightSidebar';
-import { ModelParameters, GalleryItem } from '../types';
+import { GalleryItem, ModelParameters } from '../types';
 
 const HomePage: React.FC = () => {
-  const [params, setParams] = useState<ModelParameters>({
-    precision: 25,
-    textureQuality: 'standard',
-    material: 'texture',
-    lightSource: 'custom',
-    outputFormat: 'GLB',
-  });
-
   const [historyItems, setHistoryItems] = useState<GalleryItem[]>([]);
+  
+ 
+  const [params, setParams] = useState<ModelParameters>({
+    precision: 50,
+    textureQuality: 'standard',
+    outputFormat: 'OBJ',
+    material: 'glossy',
+    lightSource: 'soft'
+  });
 
   const handleGenerationComplete = (newItem: GalleryItem) => {
     setHistoryItems(prevItems => [newItem, ...prevItems].slice(0, 4)); // Keep last 4 items

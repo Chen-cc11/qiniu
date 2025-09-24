@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { GenerationMode, ModelParameters, GalleryItem } from '../types';
 import ModelViewer from './ModelViewer';
-import { textToModel, imageToModel, uploadImage, getTaskStatus } from '../services/api';
+import { textToModel, createImageTask, getTaskStatus } from '../services/api';
 
 const TabButton: React.FC<{
     label: string;
@@ -27,7 +27,7 @@ interface MainContentProps {
 
 const MainContent: React.FC<MainContentProps> = ({ params, onGenerationComplete }) => {
     const [mode, setMode] = useState<GenerationMode>(GenerationMode.TEXT);
-    const [prompt, setPrompt] = useState('A modern sofa, velour material, L-shaped design, metal base');
+    const [prompt, setPrompt] = useState('一个现代风格的丝绒沙发，L型设计，金属底座');
     const [isGenerating, setIsGenerating] = useState(false);
     const [progress, setProgress] = useState(0);
     const [generationStatusText, setGenerationStatusText] = useState('准备就绪');
@@ -45,30 +45,30 @@ const MainContent: React.FC<MainContentProps> = ({ params, onGenerationComplete 
             if (!currentTaskID) return;
 
             try {
-                const result = await getTaskStatus(currentTaskID);
-                const taskStatus = result.data;
+                // 后端返回的直接是数据体，没有 'data' 包装层
+                const taskStatus = await getTaskStatus(currentTaskID); 
                 
-                if (taskStatus.status === 'completed' && taskStatus.result) {
+                if (taskStatus.status === 'completed' && taskStatus.result_url) {
                     if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
                     setProgress(100);
                     setGenerationStatusText('模型生成完成!');
-                    setModelUrl(taskStatus.result.modelURL);
-                    setDownloadUrl(taskStatus.result.modelURL);
+                    setModelUrl(taskStatus.result_url);
+                    setDownloadUrl(taskStatus.result_url);
 
                     const newHistoryItem: GalleryItem = {
                         id: Date.now(),
-                        title: (mode === GenerationMode.TEXT ? prompt : uploadedImageFile?.name || 'Image generation').substring(0, 20) + '...',
+                        title: (mode === GenerationMode.TEXT ? prompt : uploadedImageFile?.name || '图片生成').substring(0, 20) + '...',
                         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                         details: params.outputFormat,
-                        imageUrl: taskStatus.result.thumbnailURL || `https://picsum.photos/seed/${Date.now()}/200/200`,
-                        modelUrl: taskStatus.result.modelURL,
+                        imageUrl: taskStatus.thumbnail_url || `https://picsum.photos/seed/${Date.now()}/200/200`,
+                        modelUrl: taskStatus.result_url,
                     };
                     onGenerationComplete(newHistoryItem);
                     setIsGenerating(false);
                     setCurrentTaskID(null);
                 } else if (taskStatus.status === 'failed') {
                     if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
-                    setGenerationStatusText(`生成失败: ${taskStatus.error || '未知错误'}`);
+                    setGenerationStatusText(`生成失败: ${taskStatus.error_message || '未知错误'}`);
                     setIsGenerating(false);
                     setCurrentTaskID(null);
                 } else {
@@ -78,9 +78,14 @@ const MainContent: React.FC<MainContentProps> = ({ params, onGenerationComplete 
                     setGenerationStatusText(`${currentStatusText} (${taskStatus.progress || 0}%)`);
                 }
             } catch (error) {
-                console.error('Polling failed:', error);
+                console.error('轮询失败:', error);
                 if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
-                setGenerationStatusText(`轮询异常: ${error instanceof Error ? error.message : String(error)}`);
+                const errorMessage = error instanceof Error ? error.message : String(error);
+                if (errorMessage.includes("401") || errorMessage.includes("Unauthorized")) {
+                    setGenerationStatusText(`认证失败, 请重新登录`);
+                } else {
+                    setGenerationStatusText(`轮询异常: ${errorMessage}`);
+                }
                 setIsGenerating(false);
                 setCurrentTaskID(null);
             }
@@ -115,22 +120,13 @@ const MainContent: React.FC<MainContentProps> = ({ params, onGenerationComplete 
                     quad: params.outputFormat !== 'STL',
                 };
                 const response = await textToModel(payload);
-                taskId = response.data.taskID;
+                // 修正: 直接从响应中获取 taskID，因为后端返回的是扁平结构
+                taskId = response.taskID;
             } else if (mode === GenerationMode.IMAGE && uploadedImageFile) {
-                setGenerationStatusText('正在上传图片...');
-                const uploadResponse = await uploadImage(uploadedImageFile);
-                const imageToken = uploadResponse.data.imageToken;
-                
-                setGenerationStatusText('图片上传成功，正在创建任务...');
-                const payload = {
-                    fileToken: imageToken,
-                    faceLimit: Math.round(5000 + (params.precision / 100) * 95000),
-                    texture: true, pbr: true,
-                    textureQuality: 'original_image' as const,
-                    quad: params.outputFormat !== 'STL',
-                };
-                const taskResponse = await imageToModel(payload);
-                taskId = taskResponse.data.taskID;
+                setGenerationStatusText('正在上传图片并创建任务...');
+                // 修正: 直接调用 createImageTask，它会上传文件并返回任务信息
+                const response = await createImageTask(uploadedImageFile);
+                taskId = response.taskID;
             }
 
             if (taskId) {
@@ -141,8 +137,13 @@ const MainContent: React.FC<MainContentProps> = ({ params, onGenerationComplete 
                  setGenerationStatusText('准备就绪');
             }
         } catch (error) {
-            console.error("Generation request failed:", error);
-            setGenerationStatusText(`请求失败: ${error instanceof Error ? error.message : String(error)}`);
+            console.error("生成请求失败:", error);
+            const errorMessage = error instanceof Error ? error.message : String(error);
+             if (errorMessage.includes("401") || errorMessage.includes("Unauthorized")) {
+                setGenerationStatusText(`认证失败, 请重新登录`);
+            } else {
+                setGenerationStatusText(`请求失败: ${errorMessage}`);
+            }
             setIsGenerating(false);
         }
     };
@@ -163,7 +164,7 @@ const MainContent: React.FC<MainContentProps> = ({ params, onGenerationComplete 
         if (!downloadUrl) return;
         try {
             const response = await fetch(downloadUrl);
-            if (!response.ok) throw new Error(`Download failed: ${response.statusText}`);
+            if (!response.ok) throw new Error(`下载失败: ${response.statusText}`);
             const blob = await response.blob();
             
             const link = document.createElement('a');
@@ -176,8 +177,8 @@ const MainContent: React.FC<MainContentProps> = ({ params, onGenerationComplete 
             document.body.removeChild(link);
             URL.revokeObjectURL(link.href);
         } catch (error) {
-            console.error("Download failed:", error);
-            alert(`Download failed: ${error instanceof Error ? error.message : String(error)}`);
+            console.error("下载失败:", error);
+            alert(`下载失败: ${error instanceof Error ? error.message : String(error)}`);
         }
     };
 
@@ -232,7 +233,7 @@ const MainContent: React.FC<MainContentProps> = ({ params, onGenerationComplete 
                         onClick={triggerFileSelect}
                     >
                         {uploadedImagePreview ? (
-                            <img src={uploadedImagePreview} alt="Uploaded preview" className="max-h-full max-w-full rounded-md object-contain" />
+                            <img src={uploadedImagePreview} alt="上传预览" className="max-h-full max-w-full rounded-md object-contain" />
                         ) : (
                             <>
                                 <input type="file" accept="image/jpeg,image/png,image/webp" ref={fileInputRef} onChange={handleImageUpload} className="hidden" />

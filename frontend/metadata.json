@@ -1,5 +1,5 @@
 {
-  "name": "ModelForge - 3D 模型生成",
-  "description": "一个根据文本描述或图片生成3D模型的应用，具有参数控制和生成模型历史记录的功能。",
+  "name": "ModelCraft Pro",
+  "description": "A web application for generating 3D models from text or images using AI. Users can customize model parameters like fineness, texture, material, and lighting to craft their desired 3D assets.",
   "requestFramePermissions": []
 }

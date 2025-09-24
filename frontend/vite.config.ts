@@ -1,18 +1,23 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
+import path from 'path';
+import { defineConfig, loadEnv } from 'vite';
+import react from '@vitejs/plugin-react';
 
-// https://vitejs.dev/config/
-export default defineConfig({
-  plugins: [react()],
-  server: {
-    proxy: {
-      // 将 /api 的请求代理到后端服务
-      '/api': {
-        target: 'http://localhost:8080', // 您的Go后端地址
-        changeOrigin: true,
-        // 现在前端请求 /api/..., 代理会直接转发到 http://localhost:8080/api/...
-        // 这与后端新的路由结构完全匹配。
+export default defineConfig(({ mode }) => {
+    const env = loadEnv(mode, '.', '');
+    return {
+      server: {
+        port: 3000,
+        host: '0.0.0.0',
       },
-    },
-  },
-})
+      plugins: [react()],
+      define: {
+        'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
+        'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY)
+      },
+      resolve: {
+        alias: {
+          '@': path.resolve(__dirname, '.'),
+        }
+      }
+    };
+});

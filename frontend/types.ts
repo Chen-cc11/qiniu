@@ -1,68 +1,50 @@
-export interface GalleryItem {
-  id: number;
-  title: string;
-  time: string;
-  details: string;
-  imageUrl: string;
-  selected?: boolean;
-  badge?: string;
+export enum ModelFineness {
+    LOW = '低',
+    MEDIUM = '中',
+    HIGH = '高'
 }
 
-export enum GenerationMode {
-  TEXT = 'TEXT',
-  IMAGE = 'IMAGE',
+export enum TextureQuality {
+    LOW = '低',
+    STANDARD = '标准',
+    HIGH = '高',
+}
+
+export enum MaterialType {
+    METAL = '金属',
+    VELVET = '绒面',
+    CERAMIC = '陶瓷',
+    GRID = '网格',
+}
+
+export enum LightSource {
+    SOFT = '柔和',
+    STRONG = '强烈'
+}
+
+export enum OutputFormat {
+    OBJ = 'OBJ',
+    GLB = 'GLB',
+    STL = 'STL'
 }
 
 export interface ModelParameters {
-  precision: number;
-  textureQuality: 'standard' | 'detailed';
-  material: string;
-  lightSource: string;
-  outputFormat: 'OBJ' | 'GLB' | 'STL';
+    fineness: ModelFineness;
+    textureQuality: TextureQuality;
+    materialType: MaterialType;
+    colors: string[];
+    selectedColor: string;
+    lightSource: LightSource;
+    outputFormat: OutputFormat;
 }
 
-// API Payloads
-export interface TextToModelPayload {
-  prompt: string;
-  faceLimit: number;
-  texture: boolean;
-  pbr: boolean;
-  textureQuality: 'standard' | 'detailed';
-  quad: boolean;
+export enum GenerationMode {
+    TEXT_TO_3D = 'TextTo3D',
+    IMAGE_TO_3D = 'ImageTo3D'
 }
 
-export interface ImageToModelPayload {
-    fileToken: string;
-    faceLimit: number;
-    texture: boolean;
-    pbr: boolean;
-    textureQuality: 'original_image';
-    quad: boolean;
-}
-
-
-// API Responses
-interface ApiResponse<T> {
-  code: number;
-  data: T;
-  msg?: string;
-}
-
-export type ApiTaskResponse = ApiResponse<{
-  taskID: string;
-}>;
-
-export type ApiUploadResponse = ApiResponse<{
-  imageToken: string;
-}>;
-
-export type ApiTaskStatusResponse = ApiResponse<{
-  taskID: string;
-  status: 'pending' | 'processing' | 'completed' | 'failed';
-  progress: number;
-  result: {
-    modelURL: string;
-    thumbnailURL: string;
-  };
-  error?: string;
-}>;
+export type TaskStatus = 
+    | { status: 'idle' }
+    | { status: 'processing'; progress?: number; eta?: number; message?: string }
+    | { status: 'completed'; modelUrl: string }
+    | { status: 'failed'; error: string };

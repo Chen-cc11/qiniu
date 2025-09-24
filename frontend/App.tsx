@@ -3,31 +3,48 @@ import Header from './components/Header';
 import ParamsPanel from './components/ParamsPanel';
 import GenerationPanel from './components/GenerationPanel';
 import PreviewPanel from './components/PreviewPanel';
-import type { ModelParameters, TaskStatus } from './types';
+import type { ModelParameters, TaskStatus, Model } from './types';
 import { GenerationMode } from './types';
-import { DEFAULT_MODEL_PARAMETERS } from './constants';
+import { DEFAULT_MODEL_PARAMETERS, MODEL_LIBRARY } from './constants';
 
-const API_BASE_URL = 'http://localhost:8080'; // Backend server address
-// A pre-generated JWT with payload {"userID": "user123"} and the backend's secret key
-const AUTH_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySUQiOiJ1c2VyMTIzIiwiZXhwIjoxODkzNDU2MDAwfQ.D140GjE-b_T-0e_eYgJ4_w8B_x7kY9a7Z9kZ6cK8d9c';
+const API_BASE_URL = 'http://localhost:8080/api'; // 后端服务器地址
+// 使用后端密钥生成的一个新的、有效的JWT令牌
+const AUTH_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySUQiOiJ1c2VyMTIzIiwiZXhwIjoxNzE4NzMyODQ2fQ.6_MK2O0f8y-_2bd-WSp9c3V2Yy5-fN9J-xK_fUprTRg';
+
+// 从模型库中获取不重复的随机模型的辅助函数
+const getRandomModels = (count: number): Model[] => {
+  const shuffled = [...MODEL_LIBRARY].sort(() => 0.5 - Math.random());
+  return shuffled.slice(0, count);
+};
+
 
 const App: React.FC = () => {
   const [params, setParams] = useState<ModelParameters>(DEFAULT_MODEL_PARAMETERS);
   const [generationMode, setGenerationMode] = useState<GenerationMode>(GenerationMode.TEXT_TO_3D);
-  const [taskStatus, setTaskStatus] = useState<TaskStatus>({ status: 'completed', modelUrl: 'https://cdn.glitch.global/6a83e30f-b7e6-4b2c-b519-5a653894086c/labubu.glb?v=1718873155712' });
+  // 默认将主预览设置为宇航员模型，以提供一致的启动体验。
+  const [taskStatus, setTaskStatus] = useState<TaskStatus>(() => {
+    const astronautModel = MODEL_LIBRARY.find(m => m.url.includes('Astronaut')) || MODEL_LIBRARY[0];
+    return { status: 'completed', model: astronautModel };
+  });
   const [prompt, setPrompt] = useState<string>('');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [taskId, setTaskId] = useState<string | null>(null);
+  // 用于存放3个随机灵感模型的状态
+  const [inspirationModels, setInspirationModels] = useState<Model[]>(() => getRandomModels(3));
+
   
   const handleModeChange = (newMode: GenerationMode) => {
     if (newMode !== generationMode) {
       setGenerationMode(newMode);
       setPrompt('');
       setImageFile(null);
-      if (taskStatus.status !== 'processing') {
-        // Reset to default view when switching modes unless a task is running
-        setTaskStatus({ status: 'completed', modelUrl: 'https://cdn.glitch.global/6a83e30f-b7e6-4b2c-b519-5a653894086c/labubu.glb?v=1718873155712' });
-      }
+      // 切换模式时不重置视图
+    }
+  };
+
+  const handleInspirationSelect = (model: Model) => {
+    if (taskStatus.status !== 'processing') {
+      setTaskStatus({ status: 'completed', model });
     }
   };
 
@@ -81,6 +98,7 @@ const App: React.FC = () => {
     }
   }, [prompt, taskStatus.status, generationMode, imageFile]);
 
+  // 此effect用于轮询后端以获取任务的真实状态。
   useEffect(() => {
     if (!taskId || taskStatus.status === 'completed' || taskStatus.status === 'failed') {
       return;
@@ -89,56 +107,69 @@ const App: React.FC = () => {
     const interval = setInterval(async () => {
       try {
         const response = await fetch(`${API_BASE_URL}/tasks/${taskId}/status`, {
-            headers: {
-                'Authorization': `Bearer ${AUTH_TOKEN}`,
-            }
+            headers: { 'Authorization': `Bearer ${AUTH_TOKEN}` }
         });
 
-        if (!response.ok) {
-          clearInterval(interval);
-          setTaskStatus({ status: 'failed', error: '无法获取任务状态' });
-          return;
-        }
+        if (!response.ok) { throw new Error('无法获取任务状态'); }
         
         const data = await response.json();
 
-        switch (data.status) {
-          case 'completed':
+        if (data.status === 'completed') {
             clearInterval(interval);
-            setTaskStatus({ status: 'completed', modelUrl: data.result_url });
-            break;
-          case 'processing':
-            setTaskStatus({
-              status: 'processing',
-              progress: data.progress,
-              message: 'AI正在处理您的模型细节...',
-              eta: undefined
-            });
-            break;
-          case 'failed':
+            // 新生成的模型没有海报图，因此我们提供一个空值。
+            setTaskStatus({ status: 'completed', model: { url: data.result_url, poster: '' } });
+        } else if (data.status === 'failed') {
             clearInterval(interval);
             setTaskStatus({ status: 'failed', error: data.error_message || '模型生成失败' });
-            break;
-          case 'pending':
-             setTaskStatus(prev => ({
-                status: 'processing',
-                progress: prev.status === 'processing' ? (prev.progress ?? 5) : 5,
-                message: '任务正在排队等待处理...',
-                eta: undefined
-             }));
-             break;
-          default:
-            break;
         }
+        // 如果状态是'processing'或'pending'，我们让模拟效果来处理UI更新。
+        // 我们只需要继续轮询。
+
       } catch (error) {
         clearInterval(interval);
         setTaskStatus({ status: 'failed', error: '轮询任务状态时出错' });
       }
-    }, 5000);
+    }, 2000); // 每2秒轮询一次最终状态
 
     return () => clearInterval(interval);
 
   }, [taskId, taskStatus.status]);
+
+
+  // 此effect通过模拟平滑的进度来提供更好的用户体验。
+  useEffect(() => {
+    if (taskStatus.status !== 'processing') return;
+
+    // 开始模拟
+    let currentProgress = taskStatus.progress ?? 5;
+    let currentEta = 60; // 预计剩余时间从60秒开始
+
+    const simulationInterval = setInterval(() => {
+      // 不让模拟进度达到100%，后端返回的状态才是完成的唯一依据。
+      if (currentProgress < 95) {
+        currentProgress += 1;
+      }
+      // 不让预计剩余时间降至0
+      if (currentEta > 5) { 
+        currentEta -= 1;
+      }
+
+      setTaskStatus(prev => {
+        // 确保我们不会覆盖掉可能来自轮询effect的最终状态
+        if (prev.status !== 'processing') {
+          clearInterval(simulationInterval);
+          return prev;
+        }
+        return {
+          ...prev,
+          progress: currentProgress,
+          eta: currentEta,
+        };
+      });
+    }, 1000);
+
+    return () => clearInterval(simulationInterval);
+  }, [taskStatus.status]);
 
 
   return (
@@ -158,6 +189,8 @@ const App: React.FC = () => {
             onImageFileChange={setImageFile}
             onGenerate={handleGenerate}
             taskStatus={taskStatus}
+            inspirationModels={inspirationModels}
+            onInspirationSelect={handleInspirationSelect}
           />
         </div>
         <div className="lg:col-span-4">

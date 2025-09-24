@@ -1,35 +1,6 @@
 import React, { useRef, useCallback } from 'react';
-import type { TaskStatus } from '../types';
+import type { TaskStatus, ModelViewerElement } from '../types';
 import { ResetIcon, ZoomInIcon, ZoomOutIcon, SaveIcon, ExportIcon } from './icons';
-
-interface ModelViewerElement extends HTMLElement {
-  cameraOrbit: string;
-}
-
-// FIX: To use the custom <model-viewer> element with TypeScript and JSX, we must
-// declare it in the JSX.IntrinsicElements namespace. This resolves errors about
-// 'model-viewer' not existing on type 'JSX.IntrinsicElements'.
-declare global {
-  namespace JSX {
-    interface IntrinsicElements {
-      // FIX: Corrected the type definition for 'model-viewer' to resolve JSX recognition errors.
-      // The previous combination of types was not being correctly recognized by TypeScript.
-      // Using React.DetailedHTMLProps is the standard way to add custom elements with full
-      // support for React props like `ref` and `style`, resolving the JSX recognition error.
-      'model-viewer': React.DetailedHTMLProps<
-        React.HTMLAttributes<ModelViewerElement>,
-        ModelViewerElement
-      > & {
-        src?: string;
-        alt?: string;
-        'auto-rotate'?: boolean;
-        'camera-controls'?: boolean;
-        'shadow-intensity'?: string;
-        'camera-orbit'?: string;
-      };
-    }
-  }
-}
 
 interface PreviewPanelProps {
   taskStatus: TaskStatus;
@@ -57,7 +28,7 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ taskStatus }) => {
       const [theta, phi, radiusStr] = mv.cameraOrbit.split(' ');
       const radius = parseFloat(radiusStr);
       if (isNaN(radius)) return;
-      const unit = radiusStr.replace(/[\d.-]/g, '') || 'm'; // Get unit ('m', '%', etc.) or default to 'm'
+      const unit = radiusStr.replace(/[\d.-]/g, '') || 'm'; // 获取单位（'m', '%' 等）或默认为 'm'
       const newRadius = Math.max(0.1, radius * factor);
       mv.cameraOrbit = `${theta} ${phi} ${newRadius}${unit}`;
     }
@@ -70,7 +41,8 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ taskStatus }) => {
         {taskStatus.status === 'completed' ? (
           <model-viewer
             ref={modelViewerRef}
-            src={taskStatus.modelUrl}
+            src={taskStatus.model.url}
+            poster={taskStatus.model.poster}
             alt="Generated 3D Model"
             auto-rotate
             camera-controls

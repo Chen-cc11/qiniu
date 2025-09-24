@@ -1,20 +1,62 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
-
-# Run and deploy your AI Studio app
-
-This contains everything you need to run your app locally.
-
-View your app in AI Studio: https://ai.studio/apps/drive/1QY7RHEG0FN3rWoavJXEts11VbxMl_j4m
-
-## Run Locally
-
-**Prerequisites:**  Node.js
 
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+用户界面支持以下功能：
+-   文生3D（Text-to-3D）和图生3D（Image-to-3D）两种生成模式。
+-   配置模型参数（如精细度、纹理、材质等）。
+-   对生成模型进行交互式的3D预览。
+-   一个包含推荐模型和用户历史记录的“灵感广场”。
+
+## 如何运行前端
+
+1.  **环境要求**: 一个简单的静态文件服务器。
+2.  **定位目录**: 在前端项目的根目录中打开一个终端。
+3.  **启动服务**: 运行以下命令来启动一个本地服务器：
+    ```bash
+    npm run dev
+    ```
+4.  **访问**: 打开您的网络浏览器，并访问命令行提供的本地URL
+
+---
+
+## 后端对接交接 & 未完成功能列表
+
+以下是前端已实现但目前为模拟数据或未完成的功能列表，需要后端实现相应接口和逻辑才能使其完整运作。
+
+### 1. 用户认证
+
+-   **当前状态**: 前端在顶部导航栏有“登录”和“注册”按钮，但它们当前没有功能。所有的API请求都使用一个硬编码的静态JWT（`App.tsx` 文件中的 `AUTH_TOKEN`）进行授权。
+-   **后端需实现**:
+    -   实现 `/api/register` 和 `/api/login` 接口。
+    -   `/api/login` 接口应在用户成功认证后返回一个有效的JWT。
+    -   前端将在获取此令牌后进行存储，并在后续所有需要认证的请求中携带它。
+
+### 2. 生成历史记录
+
+-   **当前状态**: “灵感广场”有一个“历史记录”标签页。目前它仅显示一个静态提示，要求用户登录，因为无法获取用户的历史数据。
+-   **后端需实现**:
+    -   确保 `GET /api/tasks` 接口已完全实现。
+    -   此接口应受保护，并使用用户的JWT来识别其身份。
+    -   接口应返回该用户过去生成任务（模型）的分页列表。前端将获取这些数据并展示在“历史记录”标签页中。
+
+### 3. 模型参数的完全集成
+
+-   **当前状态**: 左侧的“模型参数”面板允许用户选择精细度、纹理质量、材质、颜色等。然而，在发起生成请求时，**这些参数目前并未被发送到后端**。
+-   **后端需实现**:
+    -   更新 `POST /api/generate/text` 和 `POST /api/generate/image` 接口，使其能接受一个包含所有在 `ModelParameters` 接口（定义于 `types.ts`）中定义的参数的JSON体。
+    -   后端服务必须使用这些接收到的参数，并将它们传递给第三方的Tripo API，以影响最终生成的3D模型。目前的后端实现使用的是硬编码的固定值。
+
+### 4. 保存/导出功能
+
+-   **当前状态**: “模型预览”面板有“保存模型”和“导出文件”按钮，但它们目前是无效的。
+-   **后端需实现**:
+    -   **导出文件**: 这很可能可以在前端处理（通过模型URL创建一个下载链接），但如果文件下载需要特殊的请求头或身份验证，则可能需要后端协助。
+    -   **保存模型**: 这指的是将一个模型保存到用户的永久收藏/作品集中。这需要一个新的接口，例如 `POST /api/gallery`，以一种比原始任务历史更持久的方式，将一个已完成的任务与用户账户关联起来。
+
+### 5. 保存预设功能
+
+-   **当前状态**: “模型参数”面板有一个“保存预设”按钮，目前没有功能。
+-   **后端需实现**:
+    -   需要一套新的接口来管理用户的参数预设。
+    -   `POST /api/presets`: 为当前认证用户保存一套 `ModelParameters` 参数。
+    -   `GET /api/presets`: 获取当前认证用户保存的所有预设列表。
+    -   这很可能需要在数据库中新增一个 `presets` 表。

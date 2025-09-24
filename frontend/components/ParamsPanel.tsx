@@ -24,8 +24,8 @@ const ParamsPanel: React.FC<ParamsPanelProps> = ({ parameters, onParametersChang
     };
 
     const handleColorSelect = (color: string) => {
-        // FIX: Cannot find name 'onParametersactionsChange'. Did you mean 'onParametersChange'?
-        // FIX: Corrected typo from onParametersactionsChange to onParametersChange.
+        // 修复：找不到名称 'onParametersactionsChange'。您是指 'onParametersChange' 吗？
+        // 修复：将拼写错误 onParametersactionsChange 更正为 onParametersChange。
         onParametersChange(prev => ({ ...prev, selectedColor: color }));
     };
     

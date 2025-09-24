@@ -18,6 +18,7 @@ import (
 	"github.com/go-redis/redis/v8"
 	"github.com/joho/godotenv"
 	"gorm.io/driver/postgres"
+	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 
@@ -60,12 +61,21 @@ func main() {
 
 // initDatabase 初始化数据库
 func initDatabase() (*gorm.DB, error) {
-	dsn := buildDSN()
-
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
-	if err != nil {
-		return nil, err
-	}
+    // Allow switching to SQLite for local/dev: set DB_DRIVER=sqlite
+    driver := getEnv("DB_DRIVER", "postgres")
+    var db *gorm.DB
+    var err error
+    if driver == "sqlite" {
+        // Use file-based SQLite DB by default
+        sqlitePath := getEnv("SQLITE_PATH", "./dev.db")
+        db, err = gorm.Open(sqlite.Open(sqlitePath), &gorm.Config{})
+    } else {
+        dsn := buildDSN()
+        db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
+    }
+    if err != nil {
+        return nil, err
+    }
 
 	// 自动迁移
 	if err := db.AutoMigrate(&models.User{}, &models.Task{}, &models.Feedback{}); err != nil {
@@ -96,15 +106,19 @@ func getEnv(key, defaultValue string) string {
 
 // initRedis 初始化Redis
 func initRedis() (*redis.Client, error) {
-	client := redis.NewClient(&redis.Options{
-		Addr:     getEnv("REDIS_HOST", "localhost") + ":" + getEnv("REDIS_PORT", "6379"),
-		Password: getEnv("REDIS_PASSWORD", ""),
-		DB:       0,
-	})
-	// 测试连接
-	ctx := context.Background()
-	if err := client.Ping(ctx).Err(); err != nil {
-		return nil, err
-	}
-	return client, nil
+    // Allow disabling Redis in dev: set REDIS_DISABLED=true
+    if getEnv("REDIS_DISABLED", "false") == "true" {
+        return nil, nil
+    }
+    client := redis.NewClient(&redis.Options{
+        Addr:     getEnv("REDIS_HOST", "localhost") + ":" + getEnv("REDIS_PORT", "6379"),
+        Password: getEnv("REDIS_PASSWORD", ""),
+        DB:       0,
+    })
+    // 测试连接
+    ctx := context.Background()
+    if err := client.Ping(ctx).Err(); err != nil {
+        return nil, err
+    }
+    return client, nil
 }

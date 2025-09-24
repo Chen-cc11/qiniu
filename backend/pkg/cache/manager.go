@@ -26,6 +26,9 @@ func NewCacheManager(redisClient *redis.Client) *CacheManager {
 //
 // @Description: 获取缓存的任务
 func (c *CacheManager) GetTask(inputHash string) *models.Task {
+    if c.redis == nil {
+        return nil
+    }
 	ctx := context.Background()
 	key := fmt.Sprintf("task:%s", inputHash)
 
@@ -45,6 +48,9 @@ func (c *CacheManager) GetTask(inputHash string) *models.Task {
 //
 // @Description:设置缓存的任务
 func (c *CacheManager) SetTask(inputHash string, task *models.Task) {
+    if c.redis == nil {
+        return
+    }
 	ctx := context.Background()
 	key := fmt.Sprintf("task:%s", inputHash)
 
@@ -62,6 +68,9 @@ func (c *CacheManager) SetTask(inputHash string, task *models.Task) {
 //
 // @Description: 删除缓存的任务
 func (c *CacheManager) DeleteTask(inputHash string) {
+    if c.redis == nil {
+        return
+    }
 	ctx := context.Background()
 	key := fmt.Sprintf("task:%s", inputHash)
 	c.redis.Del(ctx, key).Err()
@@ -71,6 +80,9 @@ func (c *CacheManager) DeleteTask(inputHash string) {
 //
 // @Description: 获取用户任务缓存
 func (c *CacheManager) GetUserTasks(userID string, limit, offset int) []*models.Task {
+    if c.redis == nil {
+        return nil
+    }
 	ctx := context.Background()
 	key := fmt.Sprintf("user_tasks:%s:%d:%d", userID, limit, offset)
 
@@ -89,6 +101,9 @@ func (c *CacheManager) GetUserTasks(userID string, limit, offset int) []*models.
 //
 // @Description: 设置用户缓存
 func (c *CacheManager) SetUserTasks(userID string, limit, offset int, tasks []*models.Task) {
+    if c.redis == nil {
+        return
+    }
 	ctx := context.Background()
 	key := fmt.Sprintf("user_tasks:%s:%d:%d", userID, limit, offset)
 
@@ -105,6 +120,9 @@ func (c *CacheManager) SetUserTasks(userID string, limit, offset int, tasks []*m
 //
 // @Description: 删除用户任务缓存
 func (c *CacheManager) DeleteUserTaskCache(userID string) {
+    if c.redis == nil {
+        return
+    }
 	ctx := context.Background()
 	pattern := fmt.Sprintf("user_tasks:%s", userID)
 
@@ -121,6 +139,9 @@ func (c *CacheManager) DeleteUserTaskCache(userID string) {
 //
 // @Description: 获取余额缓存
 func (c *CacheManager) GetBalance() *models.TripoBalanceResponse {
+    if c.redis == nil {
+        return nil
+    }
 	ctx := context.Background()
 	key := "balance"
 
@@ -140,6 +161,9 @@ func (c *CacheManager) GetBalance() *models.TripoBalanceResponse {
 //
 // @Description: 设置余额缓存
 func (c *CacheManager) SetBalance(balance *models.TripoBalanceResponse) {
+    if c.redis == nil {
+        return
+    }
 	ctx := context.Background()
 	key := "balance"
 	data, err := json.Marshal(balance)
@@ -154,6 +178,9 @@ func (c *CacheManager) SetBalance(balance *models.TripoBalanceResponse) {
 //
 // @Description: 清空所有缓存
 func (c *CacheManager) ClearAll() {
+    if c.redis == nil {
+        return
+    }
 	ctx := context.Background()
 	c.redis.FlushDB(ctx)
 }

@@ -1,11 +1,14 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
+	"path/filepath"
 	"strconv"
 
 	"github.com/Chen-cc11/qiniu/backend/internal/service"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 // TaskHandler 任务处理器
@@ -32,8 +35,8 @@ func (h *TaskHandler) GenerateFromText(c *gin.Context) {
 		})
 		return
 	}
-	// 获取用户ID（从JWT token中解析）
-	userID, exists := c.Get("userId")
+	// 修正: 获取用户ID（从JWT token中解析） - 与中间件中的 "userID" 保持一致
+	userID, exists := c.Get("userID")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"error": "User is Unauthorized",
@@ -60,16 +63,17 @@ func (h *TaskHandler) GenerateFromText(c *gin.Context) {
 //
 // @Description: 从图片生成3D模型
 func (h *TaskHandler) GenerateFromImage(c *gin.Context) {
-	// 获取用户ID
-	userID, exists := c.Get("userId")
+	// 修正: 获取用户ID - 与中间件中的 "userID" 保持一致
+	userID, exists := c.Get("userID")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"error": "User is Unauthorized",
 		})
 		return
 	}
-	// 处理文件上传
-	_, err := c.FormFile("image")
+
+	// 修正: 正确处理文件上传逻辑
+	file, err := c.FormFile("image")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Invalid request",
@@ -77,16 +81,25 @@ func (h *TaskHandler) GenerateFromImage(c *gin.Context) {
 		})
 		return
 	}
-	// 应该先保存文件到本地或云存储，然后获取URL
-	// todo：假设前端直接提供图片URL
-	imageURL := c.PostForm("image_url")
-	if imageURL == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Missing image URL",
-			"message": "please upload picture URL",
+
+	// 生成唯一文件名以避免冲突
+	extension := filepath.Ext(file.Filename)
+	newFileName := uuid.New().String() + extension
+	dst := filepath.Join("./uploads", newFileName) // 保存到预定义的 'uploads' 目录
+
+	// 保存文件到服务器
+	if err := c.SaveUploadedFile(file, dst); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "Failed to save uploaded file",
+			"message": err.Error(),
 		})
 		return
 	}
+
+	// 构建可供访问的文件URL
+	// 注意: 这里的URL需要与 main.go 中配置的静态文件服务路径匹配
+	imageURL := fmt.Sprintf("http://%s/uploads/%s", c.Request.Host, newFileName)
+
 	// 创建任务
 	task, err := h.taskService.CreateImageTask(c.Request.Context(), userID.(string), imageURL)
 	if err != nil {
@@ -160,8 +173,8 @@ func (h *TaskHandler) GetTaskStatus(c *gin.Context) {
 
 // GetUserTasks 获取用户任务列表
 func (h *TaskHandler) GetUserTasks(c *gin.Context) {
-	// 获取用户ID
-	userID, exists := c.Get("user_id")
+	// 修正: 获取用户ID - 与中间件中的 "userID" 保持一致
+	userID, exists := c.Get("userID")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"error": "User not authenticated",

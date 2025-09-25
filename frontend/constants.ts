@@ -11,46 +11,34 @@ export const DEFAULT_MODEL_PARAMETERS: ModelParameters = {
   outputFormat: OutputFormat.OBJ,
 };
 
-// 一个全新的、经过完全验证的模型库，使用官方的modelviewer.dev CDN来确保所有资源都能正确加载。
-export const MODEL_LIBRARY: Model[] = [
+// The library of local models to be displayed in the application.
+export const LOCAL_MODELS: Model[] = [
   {
-    url: 'https://modelviewer.dev/shared-assets/models/Astronaut.glb',
-    poster: 'https://modelviewer.dev/shared-assets/models/poster-astronaut.png',
+    url: '/models/Mechanical Dog.glb',
+    poster: '/images/Mechanical Dog.webp',
   },
   {
-    url: 'https://modelviewer.dev/shared-assets/models/Horse.glb',
-    poster: 'https://modelviewer.dev/shared-assets/models/poster-horse.png',
+    url: '/models/Umbrella.glb',
+    poster: '/images/Umbrella.webp',
   },
   {
-    url: 'https://modelviewer.dev/shared-assets/models/RobotExpressive.glb',
-    poster: 'https://modelviewer.dev/shared-assets/models/poster-robot.png',
+    url: '/models/Bell.glb',
+    poster: '/images/Bell.webp',
   },
   {
-    url: 'https://modelviewer.dev/shared-assets/models/Spinosaurus.glb',
-    poster: 'https://modelviewer.dev/shared-assets/models/poster-spino.png',
+    url: '/models/Cat.glb',
+    poster: '/images/Cat.webp',
   },
   {
-    url: 'https://modelviewer.dev/shared-assets/models/MaterialsVariantsShoe.glb',
-    poster: 'https://modelviewer.dev/shared-assets/models/poster-shoe.png',
+    url: '/models/Hat.glb',
+    poster: '/images/Hat.webp',
   },
   {
-    url: 'https://modelviewer.dev/shared-assets/models/NeilArmstrong.glb',
-    poster: 'https://modelviewer.dev/shared-assets/models/poster-neil.png',
+    url: '/models/Shoes.glb',
+    poster: '/images/Shoes.webp',
   },
   {
-    url: 'https://modelviewer.dev/shared-assets/models/glTF-Sample-Models/2.0/BrainStem/glTF-Binary/BrainStem.glb',
-    poster: 'https://modelviewer.dev/shared-assets/models/glTF-Sample-Models/2.0/BrainStem/screenshot/screenshot.png'
+    url: '/models/Train.glb',
+    poster: '/images/Train.webp',
   },
-  {
-    url: 'https://modelviewer.dev/shared-assets/models/glTF-Sample-Models/2.0/DamagedHelmet/glTF-Binary/DamagedHelmet.glb',
-    poster: 'https://modelviewer.dev/shared-assets/models/glTF-Sample-Models/2.0/DamagedHelmet/screenshot/screenshot.png'
-  },
-  {
-    url: 'https://modelviewer.dev/shared-assets/models/shishkebab.glb',
-    poster: 'https://modelviewer.dev/shared-assets/models/poster-shishkebab.png'
-  },
-  {
-    url: 'https://modelviewer.dev/shared-assets/models/Chair.glb',
-    poster: 'https://modelviewer.dev/shared-assets/models/poster-chair.png'
-  }
 ];

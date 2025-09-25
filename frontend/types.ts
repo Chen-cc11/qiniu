@@ -65,8 +65,6 @@ export type TaskStatus =
     | { status: 'completed'; model: Model } // 更新为使用新的Model接口
     | { status: 'failed'; error: string };
 
-// 修复：集中并扩展 <model-viewer> 自定义元素的类型定义。
-// 这确保了它的属性在整个应用中都能被TypeScript识别。
 export interface ModelViewerElement extends HTMLElement {
   cameraOrbit: string;
 }
@@ -81,6 +79,7 @@ declare global {
           reveal?: 'auto' | 'interaction' | 'manual'; // 添加reveal属性用于懒加载
           alt?: string;
           'auto-rotate'?: boolean;
+          'auto-rotate-delay'?: string;
           'camera-controls'?: boolean;
           'shadow-intensity'?: string;
           'camera-orbit'?: string;

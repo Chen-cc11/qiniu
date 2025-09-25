@@ -1,7 +1,7 @@
 import React, { useRef, useEffect } from 'react';
 import type { TaskStatus, Model } from '../types';
 import { GenerationMode } from '../types';
-import { WandIcon, TimeIcon, AiIcon, ImageIcon, XIcon, ChevronLeftIcon, ChevronRightIcon } from './icons';
+import { WandIcon, TimeIcon, AiIcon, ImageIcon, XIcon, ChevronLeftIcon, ChevronRightIcon, XCircleIcon } from './icons';
 
 interface GenerationPanelProps {
   mode: GenerationMode;
@@ -141,11 +141,27 @@ const GenerationPanel: React.FC<GenerationPanelProps> = ({ mode, onModeChange, p
                 <span>生成模型</span>
             </button>
             
-            <div className="mt-4 text-xs text-gray-500 bg-gray-50 p-3 rounded-lg">
-                <strong>提示:</strong> {mode === GenerationMode.TEXT_TO_3D 
-                    ? '尽可能提供详细的材质、尺寸和风格描述。例如: "一个30cm高的陶瓷花瓶, 哑光表面, 带几何图案"'
-                    : '请上传清晰、主体突出的图片以获得最佳效果。'}
-            </div>
+            {/* === 错误提示 === */}
+            {taskStatus.status === 'failed' && (
+                <div className="mt-4 p-3 bg-red-100 border-l-4 border-red-500 text-red-700 animate-fade-in" role="alert">
+                    <div className="flex">
+                        <div className="py-1"><XCircleIcon className="h-6 w-6 text-red-500 mr-3" /></div>
+                        <div>
+                            <p className="font-bold">生成失败</p>
+                            <p className="text-sm">{taskStatus.error}</p>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* === 提示信息 (无错误且不在处理中时显示) === */}
+            {taskStatus.status !== 'processing' && taskStatus.status !== 'failed' && (
+              <div className="mt-4 text-xs text-gray-500 bg-gray-50 p-3 rounded-lg">
+                  <strong>提示:</strong> {mode === GenerationMode.TEXT_TO_3D 
+                      ? '尽可能提供详细的材质、尺寸和风格描述。例如: "一个30cm高的陶瓷花瓶, 哑光表面, 带几何图案"'
+                      : '请上传清晰、主体突出的图片以获得最佳效果。'}
+              </div>
+            )}
         </div>
         
         {/* === 条件渲染的底部面板（进度或灵感） === */}
@@ -190,14 +206,11 @@ const GenerationPanel: React.FC<GenerationPanelProps> = ({ mode, onModeChange, p
                                             onClick={() => onInspirationSelect(model)}
                                             className="relative aspect-square rounded-lg overflow-hidden group cursor-pointer bg-gray-100"
                                         >
-                                            <model-viewer
-                                                src={model.url}
-                                                poster={model.poster}
+                                            <img
+                                                src={model.poster}
                                                 alt={`Inspiration ${index + 1}`}
-                                                reveal="interaction"
-                                                auto-rotate
-                                                camera-controls={false}
-                                                style={{ width: '100%', height: '100%', '--progress-mask': 'transparent' }}
+                                                className="w-full h-full object-cover"
+                                                loading="lazy"
                                             />
                                             <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                                             <div className="absolute inset-0 p-2 flex flex-col justify-end text-center">

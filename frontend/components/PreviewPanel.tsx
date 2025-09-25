@@ -1,6 +1,10 @@
-import React, { useRef, useCallback } from 'react';
+import React, { useRef, useCallback, useState, useEffect } from 'react';
+// 修复：从集中的类型文件导入ModelViewerElement，而不是在本地定义。
 import type { TaskStatus, ModelViewerElement } from '../types';
-import { ResetIcon, ZoomInIcon, ZoomOutIcon, SaveIcon, ExportIcon } from './icons';
+import { ResetIcon, ZoomInIcon, ZoomOutIcon, SaveIcon, ExportIcon, FullScreenIcon, ExitFullScreenIcon, PlayIcon, PauseIcon } from './icons';
+
+// 修复：移除了<model-viewer>的本地类型定义，因为它们现在已集中在`types.ts`中
+// 以确保整个应用的一致性和类型安全。
 
 interface PreviewPanelProps {
   taskStatus: TaskStatus;
@@ -14,6 +18,36 @@ const IconButton: React.FC<{ icon: React.ReactNode; onClick?: () => void, 'aria-
 
 const PreviewPanel: React.FC<PreviewPanelProps> = ({ taskStatus }) => {
   const modelViewerRef = useRef<ModelViewerElement>(null);
+  const previewContainerRef = useRef<HTMLDivElement>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isRotating, setIsRotating] = useState(true);
+
+
+  const handleFullScreenChange = useCallback(() => {
+    setIsFullscreen(!!document.fullscreenElement);
+  }, []);
+
+  useEffect(() => {
+    document.addEventListener('fullscreenchange', handleFullScreenChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullScreenChange);
+    };
+  }, [handleFullScreenChange]);
+
+  const handleToggleFullscreen = useCallback(() => {
+    if (!previewContainerRef.current) return;
+
+    if (!isFullscreen) {
+      previewContainerRef.current.requestFullscreen().catch(err => {
+        console.error(`Error attempting to enable full-screen mode: ${err.message} (${err.name})`);
+      });
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+      }
+    }
+  }, [isFullscreen]);
+  
 
   const handleReset = useCallback(() => {
     const mv = modelViewerRef.current;
@@ -37,16 +71,17 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ taskStatus }) => {
   return (
     <div className="bg-white p-2 rounded-xl shadow-sm h-full flex flex-col">
       <h2 className="text-lg font-bold mb-4 text-gray-800 px-4 pt-4">模型预览</h2>
-      <div className="relative flex-grow bg-gray-100 rounded-lg overflow-hidden">
+      <div ref={previewContainerRef} className="relative flex-grow bg-gray-100 rounded-lg overflow-hidden">
         {taskStatus.status === 'completed' ? (
           <model-viewer
             ref={modelViewerRef}
             src={taskStatus.model.url}
             poster={taskStatus.model.poster}
             alt="Generated 3D Model"
-            auto-rotate
+            auto-rotate={isRotating}
+            auto-rotate-delay="0"
             camera-controls
-            shadow-intensity="1"
+            shadow-intensity="0"
             camera-orbit="0deg 75deg 105%"
             style={{ width: '100%', height: '100%' }}
           ></model-viewer>
@@ -61,6 +96,8 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ taskStatus }) => {
           </div>
         )}
         <div className="absolute bottom-3 right-3 flex space-x-2">
+          <IconButton icon={isFullscreen ? <ExitFullScreenIcon className="w-5 h-5" /> : <FullScreenIcon className="w-5 h-5" />} onClick={handleToggleFullscreen} aria-label={isFullscreen ? '退出全屏' : '进入全屏'}/>
+          <IconButton icon={isRotating ? <PauseIcon className="w-5 h-5" /> : <PlayIcon className="w-5 h-5" />} onClick={() => setIsRotating(!isRotating)} aria-label={isRotating ? '暂停旋转' : '开始旋转'} />
           <IconButton icon={<ResetIcon className="w-5 h-5" />} onClick={handleReset} aria-label="Reset view"/>
           <IconButton icon={<ZoomInIcon className="w-5 h-5" />} onClick={() => handleZoom(0.9)} aria-label="Zoom in"/>
           <IconButton icon={<ZoomOutIcon className="w-5 h-5" />} onClick={() => handleZoom(1.1)} aria-label="Zoom out"/>

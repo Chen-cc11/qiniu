@@ -1,6 +1,6 @@
-
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import { BrowserRouter } from 'react-router-dom';
 import App from './App';
 
 // Wait until the model-viewer custom element is defined before rendering the app
@@ -13,7 +13,9 @@ customElements.whenDefined('model-viewer').then(() => {
   const root = ReactDOM.createRoot(rootElement);
   root.render(
     <React.StrictMode>
-      <App />
+      <BrowserRouter>
+        <App />
+      </BrowserRouter>
     </React.StrictMode>
   );
 });

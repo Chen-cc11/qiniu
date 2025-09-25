@@ -8,12 +8,13 @@
     <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.5.0/model-viewer.min.js"></script>
     <!-- 添加Babel用于在浏览器中转换JSX/TSX -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <!-- 修复：修正并简化了import map，使其使用单一、可靠的React源。这是导致渲染问题的根本原因。 -->
+    <!-- 修复：修正并简化了import map，使其使用单一、可靠的React源，并添加了react-router-dom。 -->
     <script type="importmap">
 {
   "imports": {
     "react": "https://esm.sh/react@18.3.1",
     "react-dom/client": "https://esm.sh/react-dom@18.3.1/client",
+    "react-router-dom": "https://esm.sh/react-router-dom@6.25.1",
     "react-dom/": "https://aistudiocdn.com/react-dom@^19.1.1/",
     "react/": "https://aistudiocdn.com/react@^19.1.1/"
   }

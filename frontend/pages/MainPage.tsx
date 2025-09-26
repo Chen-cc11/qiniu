@@ -6,10 +6,11 @@ import PreviewPanel from '../components/PreviewPanel';
 import type { ModelParameters, TaskStatus, Model } from '../types';
 import { GenerationMode } from '../types';
 import { DEFAULT_MODEL_PARAMETERS, LOCAL_MODELS } from '../constants';
+import { apiFetch } from '../utils';
 
 const API_BASE_URL = 'http://localhost:8080'; // 后端服务器地址
 
-// Helper to parse JWT
+// 辅助函数：解析JWT
 const parseJwt = (token: string) => {
   try {
     return JSON.parse(atob(token.split('.')[1]));
@@ -18,7 +19,7 @@ const parseJwt = (token: string) => {
   }
 };
 
-// Helper to shuffle an array (Fisher-Yates shuffle)
+// 辅助函数：打乱数组 (Fisher-Yates shuffle)
 const shuffleArray = (array: Model[]): Model[] => {
   const newArray = [...array];
   for (let i = newArray.length - 1; i > 0; i--) {
@@ -38,21 +39,21 @@ const MainPage: React.FC<MainPageProps> = ({ token, onLogout }) => {
   const [params, setParams] = useState<ModelParameters>(DEFAULT_MODEL_PARAMETERS);
   const [generationMode, setGenerationMode] = useState<GenerationMode>(GenerationMode.TEXT_TO_3D);
   
-  // Shuffle models on initial render and distribute them
+  // 初始渲染时打乱模型并分发它们
   const [shuffledModels] = useState(() => shuffleArray(LOCAL_MODELS));
   
-  const [taskStatus, setTaskStatus] = useState<TaskStatus>(() => ({
-    status: 'completed',
-    model: shuffledModels[0], // Use the first shuffled model for the main preview
-  }));
-  const [inspirationModels, setInspirationModels] = useState<Model[]>(() => 
-    shuffledModels.slice(1, 4) // Use the next 3 for recommendations
+  const [displayedModel, setDisplayedModel] = useState<Model>(shuffledModels[0]);
+  const [taskStatus, setTaskStatus] = useState<TaskStatus>({ status: 'idle' });
+  
+  const [inspirationModels] = useState<Model[]>(() => 
+    shuffledModels.slice(1, 4) // 使用接下来的3个作为推荐
   );
   
   const [prompt, setPrompt] = useState<string>('');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [taskId, setTaskId] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [history, setHistory] = useState<Model[]>([]);
 
   useEffect(() => {
     if (token) {
@@ -63,6 +64,32 @@ const MainPage: React.FC<MainPageProps> = ({ token, onLogout }) => {
     }
   }, [token]);
 
+  useEffect(() => {
+    const storedHistory = localStorage.getItem('modelHistory');
+    if (storedHistory) {
+      setHistory(JSON.parse(storedHistory));
+    }
+  }, []);
+
+  const handleSaveModel = (modelToSave: Model) => {
+    setHistory(prevHistory => {
+        // 避免重复
+        if (prevHistory.some(m => m.url === modelToSave.url)) {
+            return prevHistory;
+        }
+        const newHistory = [modelToSave, ...prevHistory];
+        localStorage.setItem('modelHistory', JSON.stringify(newHistory));
+        return newHistory;
+    });
+  };
+
+  const handleDeleteModel = (modelToDelete: Model) => {
+    setHistory(prevHistory => {
+        const newHistory = prevHistory.filter(m => m.url !== modelToDelete.url);
+        localStorage.setItem('modelHistory', JSON.stringify(newHistory));
+        return newHistory;
+    });
+  };
 
   const handleModeChange = (newMode: GenerationMode) => {
     if (newMode !== generationMode) {
@@ -72,9 +99,10 @@ const MainPage: React.FC<MainPageProps> = ({ token, onLogout }) => {
     }
   };
 
-  const handleInspirationSelect = (model: Model) => {
+  const handleModelSelect = (model: Model) => {
     if (taskStatus.status !== 'processing') {
-      setTaskStatus({ status: 'completed', model });
+      setDisplayedModel(model);
+      setTaskStatus({ status: 'idle' });
     }
   };
 
@@ -90,50 +118,70 @@ const MainPage: React.FC<MainPageProps> = ({ token, onLogout }) => {
     setTaskStatus({ status: 'processing', progress: 0, eta: undefined, message: '正在创建任务...' });
 
     try {
-      let response: Response;
-
+      let data;
       if (isTextMode) {
-        response = await fetch(`${API_BASE_URL}/generate/text`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
+        // 根据新的API结构构建负载
+        const payload: { [key: string]: any } = {
+          prompt: prompt,
+          faceLimit: params.faceLimit,
+          textureQuality: params.textureQuality,
+          style: params.style,
+          quad: params.quad,
+        };
+        if (params.negativePrompt.trim()) {
+          payload.negativePrompt = params.negativePrompt.trim();
+        }
+        if (params.modelSeed !== null && !isNaN(params.modelSeed)) {
+          payload.modelSeed = params.modelSeed;
+        }
+        
+        data = await apiFetch(
+          `${API_BASE_URL}/generate/text`,
+          {
+            method: 'POST',
+            body: JSON.stringify(payload),
           },
-          body: JSON.stringify({ prompt }),
-        });
-      } else { // Image mode
+          token,
+          onLogout
+        );
+      } else { // 图片模式
+        // 更新：根据新的API规范，将所有参数与图片文件一起打包到FormData中
         const formData = new FormData();
         formData.append('image', imageFile!);
-        formData.append('image_url', 'https://modelviewer.dev/shared-assets/models/poster-horse.png');
-        
-        response = await fetch(`${API_BASE_URL}/generate/image`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
-          body: formData,
-        });
-      }
-
-      if (!response.ok) {
-        let errorData;
-        try {
-            errorData = await response.json();
-        } catch (e) {
-            errorData = { message: `HTTP error! status: ${response.status}` };
+        formData.append('faceLimit', String(params.faceLimit));
+        formData.append('textureQuality', params.textureQuality);
+        formData.append('textureAlignment', params.textureAlignment);
+        formData.append('style', params.style);
+        formData.append('quad', String(params.quad));
+        if (params.modelSeed !== null) {
+          formData.append('modelSeed', String(params.modelSeed));
         }
-        throw new Error(errorData.message || '创建任务失败');
+
+        data = await apiFetch(
+          `${API_BASE_URL}/generate/image`,
+          {
+            method: 'POST',
+            body: formData,
+          },
+          token,
+          onLogout
+        );
       }
 
-      const data = await response.json();
       setTaskId(data.taskID);
-      setTaskStatus(prev => ({ ...prev, progress: 5, message: '任务已创建，等待处理...' }));
+      setTaskStatus(prev => ({ ...(prev as any), progress: 5, message: '任务已创建，等待处理...' }));
 
     } catch (error) {
+      if (error instanceof Error && error.message === '认证失败') {
+        console.log("会话已过期。用户已登出。");
+        return;
+      }
       const errorMessage = error instanceof Error ? error.message : '未知错误';
       setTaskStatus({ status: 'failed', error: `生成请求失败: ${errorMessage}` });
+      const randomModel = LOCAL_MODELS[Math.floor(Math.random() * LOCAL_MODELS.length)];
+      setDisplayedModel(randomModel);
     }
-  }, [prompt, taskStatus.status, generationMode, imageFile, token]);
+  }, [prompt, params, taskStatus.status, generationMode, imageFile, token, onLogout]);
 
   useEffect(() => {
     if (!taskId || taskStatus.status === 'completed' || taskStatus.status === 'failed') {
@@ -142,29 +190,41 @@ const MainPage: React.FC<MainPageProps> = ({ token, onLogout }) => {
 
     const interval = setInterval(async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/tasks/${taskId}/status`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
-
-        if (!response.ok) { throw new Error('无法获取任务状态'); }
-        
-        const data = await response.json();
+        const data = await apiFetch(
+          `${API_BASE_URL}/tasks/${taskId}/status`,
+          { method: 'GET' },
+          token,
+          onLogout
+        );
 
         if (data.status === 'completed') {
             clearInterval(interval);
-            setTaskStatus({ status: 'completed', model: { url: data.result_url, poster: '' } });
+            const newModel = { url: data.result_url, poster: '', isLocal: false };
+            setTaskStatus({ status: 'completed', model: newModel });
+            setDisplayedModel(newModel);
         } else if (data.status === 'failed') {
             clearInterval(interval);
             setTaskStatus({ status: 'failed', error: data.error_message || '模型生成失败' });
+            const randomModel = LOCAL_MODELS[Math.floor(Math.random() * LOCAL_MODELS.length)];
+            setDisplayedModel(randomModel);
+        } else if (data.status === 'processing' || data.status === 'pending') {
+            // 后端真实进度更新（如果API提供）
+            // setTaskStatus(prev => ({ ...prev, progress: data.progress, eta: data.eta }));
         }
       } catch (error) {
         clearInterval(interval);
-        setTaskStatus({ status: 'failed', error: '轮询任务状态时出错' });
+        if (error instanceof Error && error.message === '认证失败') {
+          console.log("轮询期间会话已过期。用户已登出。");
+        } else {
+          setTaskStatus({ status: 'failed', error: '轮询任务状态时出错' });
+          const randomModel = LOCAL_MODELS[Math.floor(Math.random() * LOCAL_MODELS.length)];
+          setDisplayedModel(randomModel);
+        }
       }
-    }, 2000);
+    }, 5000);
 
     return () => clearInterval(interval);
-  }, [taskId, taskStatus.status, token]);
+  }, [taskId, taskStatus.status, token, onLogout]);
 
   useEffect(() => {
     if (taskStatus.status !== 'processing') return;
@@ -193,7 +253,19 @@ const MainPage: React.FC<MainPageProps> = ({ token, onLogout }) => {
       <Header onLogout={onLogout} userEmail={userEmail} />
       <main className="flex-grow container mx-auto p-4 lg:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
         <div className="lg:col-span-3">
-          <ParamsPanel parameters={params} onParametersChange={setParams} />
+          {/* 
+            修复：为ParamsPanel添加了 'key' 属性。
+            当 'generationMode' 改变时，这会强制React重新挂载该组件，
+            从而确保UI（例如显示/隐藏“反向提示词”或“纹理对齐”）
+            能够可靠地更新。这是一个解决组件在prop变化时未按预期
+            重新渲染问题的有效策略。
+          */}
+          <ParamsPanel
+            key={generationMode}
+            parameters={params}
+            onParametersChange={setParams}
+            mode={generationMode}
+          />
         </div>
         <div className="lg:col-span-5">
           <GenerationPanel
@@ -205,12 +277,18 @@ const MainPage: React.FC<MainPageProps> = ({ token, onLogout }) => {
             onImageFileChange={setImageFile}
             onGenerate={handleGenerate}
             taskStatus={taskStatus}
-            inspirationModels={inspirationModels}
-            onInspirationSelect={handleInspirationSelect}
+            recommendedModels={inspirationModels}
+            historyModels={history}
+            onModelSelect={handleModelSelect}
+            onDeleteModel={handleDeleteModel}
           />
         </div>
         <div className="lg:col-span-4">
-          <PreviewPanel taskStatus={taskStatus} />
+          <PreviewPanel 
+            taskStatus={taskStatus} 
+            displayedModel={displayedModel} 
+            onSaveModel={handleSaveModel} 
+          />
         </div>
       </main>
     </div>

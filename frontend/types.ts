@@ -1,4 +1,8 @@
-import 'react';
+// 修复：添加了三斜线指令，以确保React类型被加载用于模块增强。
+/// <reference types="react" />
+
+// 修复：导入React使其类型可用于模块增强和JSX内置元素定义。这解决了找不到'react'模块以及无法识别'DetailedHTMLProps'等类型的问题。
+import * as React from 'react';
 
 // 修复：扩展React的CSSProperties以允许自定义CSS属性（例如 '--property'）。
 // 这解决了在样式对象中使用自定义属性时出现的TypeScript错误。
@@ -8,45 +12,43 @@ declare module 'react' {
   }
 }
 
-export enum ModelFineness {
-    LOW = '低',
-    MEDIUM = '中',
-    HIGH = '高'
+// 新增：为面数限制添加预设以优化用户体验。
+export enum FaceLimitPreset {
+    LOW = '低 (10k面)',
+    MEDIUM = '中 (50k面)',
+    HIGH = '高 (100k面)'
 }
 
 export enum TextureQuality {
-    LOW = '低',
     STANDARD = '标准',
-    HIGH = '高',
+    DETAILED = '精细',
 }
 
-export enum MaterialType {
-    METAL = '金属',
-    VELVET = '绒面',
-    CERAMIC = '陶瓷',
-    GRID = '网格',
+// 新增：添加模型风格选项。
+export enum ModelStyle {
+    CARTOON = '卡通',
+    CLAY = '黏土',
+    GOLD = '金属'
 }
 
-export enum LightSource {
-    SOFT = '柔和',
-    STRONG = '强烈'
+// 新增：为图片生成模式添加纹理对齐选项。
+export enum TextureAlignment {
+    ORIGINAL = '原始图像',
+    AUTO = '自动对齐',
 }
 
-export enum OutputFormat {
-    OBJ = 'OBJ',
-    GLB = 'GLB',
-    STL = 'STL'
-}
 
 export interface ModelParameters {
-    fineness: ModelFineness;
-    textureQuality: TextureQuality;
-    materialType: MaterialType;
-    colors: string[];
-    selectedColor: string;
-    lightSource: LightSource;
-    outputFormat: OutputFormat;
+    negativePrompt: string;
+    faceLimit: number; // 例如: 10000, 50000, 100000
+    textureQuality: 'standard' | 'detailed';
+    // 新增：纹理对齐方式，用于图生3D模式。
+    textureAlignment: 'original_image' | 'auto_align';
+    style:  'cartoon' | 'clay' | 'gold';
+    quad: boolean;
+    modelSeed: number | null;
 }
+
 
 export enum GenerationMode {
     TEXT_TO_3D = 'TextTo3D',
@@ -57,6 +59,7 @@ export enum GenerationMode {
 export interface Model {
   url: string;
   poster: string;
+  isLocal?: boolean;
 }
 
 export type TaskStatus = 
@@ -65,25 +68,31 @@ export type TaskStatus =
     | { status: 'completed'; model: Model } // 更新为使用新的Model接口
     | { status: 'failed'; error: string };
 
+// 修复：集中并扩展 <model-viewer> 自定义元素的类型定义。
+// 这确保了它的属性在整个应用中都能被TypeScript识别。
 export interface ModelViewerElement extends HTMLElement {
   cameraOrbit: string;
 }
 
+// 修复：集中<model-viewer>自定义元素的类型定义。
+// 这会增强全局JSX命名空间，使TypeScript能够识别该自定义元素，
+// 从而解决关于该属性在JSX.IntrinsicElements上不存在的错误。
 declare global {
-  namespace React.JSX {
+  namespace JSX {
     interface IntrinsicElements {
       'model-viewer': React.DetailedHTMLProps<
         React.HTMLAttributes<ModelViewerElement> & {
           src?: string;
-          poster?: string; // 添加poster属性用于性能优化
-          reveal?: 'auto' | 'interaction' | 'manual'; // 添加reveal属性用于懒加载
+          poster?: string;
+          reveal?: 'auto' | 'interaction' | 'manual';
           alt?: string;
           'auto-rotate'?: boolean;
-          'auto-rotate-delay'?: string;
           'camera-controls'?: boolean;
           'shadow-intensity'?: string;
           'camera-orbit'?: string;
           'disable-zoom'?: boolean;
+          // 修复：添加在PreviewPanel.tsx中使用的缺失的auto-rotate-delay属性
+          'auto-rotate-delay'?: string;
         },
         ModelViewerElement
       >;

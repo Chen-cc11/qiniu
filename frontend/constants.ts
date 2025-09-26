@@ -1,14 +1,13 @@
 import type { ModelParameters, Model } from './types';
-import { ModelFineness, TextureQuality, MaterialType, LightSource, OutputFormat } from './types';
 
 export const DEFAULT_MODEL_PARAMETERS: ModelParameters = {
-  fineness: ModelFineness.LOW,
-  textureQuality: TextureQuality.STANDARD,
-  materialType: MaterialType.METAL,
-  colors: ['#4A90E2', '#50E3C2', '#E35050', '#000000', '#FFFFFF', '#F5A623', '#7ED321'],
-  selectedColor: '#4A90E2',
-  lightSource: LightSource.STRONG,
-  outputFormat: OutputFormat.OBJ,
+  negativePrompt: '',
+  faceLimit: 50000, // Medium
+  textureQuality: 'standard',
+  textureAlignment: 'original_image', 
+  style: 'gold',
+  quad: false,
+  modelSeed: null,
 };
 
 // The library of local models to be displayed in the application.

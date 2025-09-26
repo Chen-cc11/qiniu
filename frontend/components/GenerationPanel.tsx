@@ -1,7 +1,7 @@
 import React, { useRef, useEffect } from 'react';
 import type { TaskStatus, Model } from '../types';
 import { GenerationMode } from '../types';
-import { WandIcon, TimeIcon, AiIcon, ImageIcon, XIcon, ChevronLeftIcon, ChevronRightIcon, XCircleIcon } from './icons';
+import { WandIcon, TimeIcon, AiIcon, ImageIcon, XIcon, ChevronLeftIcon, ChevronRightIcon, XCircleIcon, LogoIcon, TrashIcon } from './icons';
 
 interface GenerationPanelProps {
   mode: GenerationMode;
@@ -12,17 +12,68 @@ interface GenerationPanelProps {
   onImageFileChange: (file: File | null) => void;
   onGenerate: () => void;
   taskStatus: TaskStatus;
-  inspirationModels: Model[];
-  onInspirationSelect: (model: Model) => void;
+  recommendedModels: Model[];
+  historyModels: Model[];
+  onModelSelect: (model: Model) => void;
+  onDeleteModel: (model: Model) => void;
 }
 
-const GenerationPanel: React.FC<GenerationPanelProps> = ({ mode, onModeChange, prompt, onPromptChange, imageFile, onImageFileChange, onGenerate, taskStatus, inspirationModels, onInspirationSelect }) => {
+interface ModelThumbnailProps {
+  model: Model;
+  onSelect: (model: Model) => void;
+  onDelete?: (model: Model) => void;
+}
+
+const ModelThumbnail: React.FC<ModelThumbnailProps> = ({ model, onSelect, onDelete }) => {
+    const handleDelete = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (onDelete) {
+            onDelete(model);
+        }
+    };
+    
+    return (
+        <div 
+            onClick={() => onSelect(model)}
+            className="relative aspect-square rounded-lg overflow-hidden group cursor-pointer bg-gray-100"
+        >
+            {model.poster ? (
+                <img
+                    src={model.poster}
+                    alt="Model thumbnail"
+                    className="w-full h-full object-cover"
+                    loading="lazy"
+                />
+            ) : (
+                <div className="w-full h-full flex items-center justify-center bg-gray-200">
+                    <LogoIcon className="w-10 h-10 text-gray-400" />
+                </div>
+            )}
+            {onDelete && (
+                <button
+                    onClick={handleDelete}
+                    className="absolute top-1.5 right-1.5 bg-black/50 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 hover:bg-black/75 transition-all z-10"
+                    aria-label="删除模型"
+                >
+                    <TrashIcon className="w-4 h-4" />
+                </button>
+            )}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+            <div className="absolute inset-0 p-2 flex flex-col justify-end text-center">
+                <p className="text-white text-xs font-semibold opacity-0 transform translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300 delay-100">点击加载模型</p>
+            </div>
+            <div className="absolute inset-0 rounded-lg ring-2 ring-transparent group-hover:ring-blue-500 transition-all duration-300 pointer-events-none"></div>
+        </div>
+    );
+};
+
+
+const GenerationPanel: React.FC<GenerationPanelProps> = ({ mode, onModeChange, prompt, onPromptChange, imageFile, onImageFileChange, onGenerate, taskStatus, recommendedModels, historyModels, onModelSelect, onDeleteModel }) => {
     
   const isProcessing = taskStatus.status === 'processing';
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [imagePreviewUrl, setImagePreviewUrl] = React.useState<string | null>(null);
   const [activeTab, setActiveTab] = React.useState<'recommended' | 'history'>('recommended');
-  const isLoggedIn = false; // 模拟数据：在真实应用中，这将来自认证上下文（auth context）。
 
   useEffect(() => {
     let url: string | null = null;
@@ -106,7 +157,7 @@ const GenerationPanel: React.FC<GenerationPanelProps> = ({ mode, onModeChange, p
                                 <button 
                                     onClick={handleImageRemove} 
                                     className="absolute top-2 right-2 bg-black/50 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 hover:bg-black/75 transition-all"
-                                    aria-label="Remove image"
+                                    aria-label="移除图片"
                                 >
                                     <XIcon className="w-4 h-4" />
                                 </button>
@@ -196,49 +247,31 @@ const GenerationPanel: React.FC<GenerationPanelProps> = ({ mode, onModeChange, p
                         </div>
                     </div>
 
-                    <div className="flex-grow relative">
+                    <div className="flex-grow relative overflow-auto">
                         {activeTab === 'recommended' && (
                             <div className="relative h-full flex items-center justify-center">
                                 <div className="grid grid-cols-3 gap-3 w-full">
-                                    {inspirationModels.map((model, index) => (
-                                        <div 
-                                            key={model.url} 
-                                            onClick={() => onInspirationSelect(model)}
-                                            className="relative aspect-square rounded-lg overflow-hidden group cursor-pointer bg-gray-100"
-                                        >
-                                            <img
-                                                src={model.poster}
-                                                alt={`Inspiration ${index + 1}`}
-                                                className="w-full h-full object-cover"
-                                                loading="lazy"
-                                            />
-                                            <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                                            <div className="absolute inset-0 p-2 flex flex-col justify-end text-center">
-                                                <p className="text-white text-xs font-semibold opacity-0 transform translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300 delay-100">点击加载模型</p>
-                                            </div>
-                                            <div className="absolute inset-0 rounded-lg ring-2 ring-transparent group-hover:ring-blue-500 transition-all duration-300 pointer-events-none"></div>
-                                        </div>
+                                    {(recommendedModels || []).map((model) => (
+                                      <ModelThumbnail key={model.url} model={model} onSelect={onModelSelect} />
                                     ))}
                                 </div>
-                                {inspirationModels.length > 3 && (
-                                    <>
-                                        <button className="absolute left-[-10px] top-1/2 -translate-y-1/2 bg-white rounded-full p-1.5 shadow-md hover:bg-gray-100 transition disabled:opacity-50 z-10">
-                                            <ChevronLeftIcon className="w-5 h-5 text-gray-600"/>
-                                        </button>
-                                        <button className="absolute right-[-10px] top-1/2 -translate-y-1/2 bg-white rounded-full p-1.5 shadow-md hover:bg-gray-100 transition disabled:opacity-50 z-10">
-                                            <ChevronRightIcon className="w-5 h-5 text-gray-600"/>
-                                        </button>
-                                    </>
-                                )}
                             </div>
                         )}
                         {activeTab === 'history' && (
-                            <div className="flex items-center justify-center h-full text-center text-gray-400">
-                                <div>
-                                    <p className="font-semibold text-gray-600">暂无历史记录</p>
-                                    <p className="text-xs mt-1">登录后可查看您生成的模型</p>
+                             (historyModels || []).length > 0 ? (
+                                <div className="grid grid-cols-3 gap-3 w-full">
+                                    {(historyModels || []).map((model) => (
+                                        <ModelThumbnail key={model.url} model={model} onSelect={onModelSelect} onDelete={onDeleteModel} />
+                                    ))}
                                 </div>
-                            </div>
+                            ) : (
+                                <div className="flex items-center justify-center h-full text-center text-gray-400">
+                                    <div>
+                                        <p className="font-semibold text-gray-600">暂无历史记录</p>
+                                        <p className="text-xs mt-1">保存的模型将显示在这里</p>
+                                    </div>
+                                </div>
+                            )
                         )}
                     </div>
                 </div>

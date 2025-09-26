@@ -18,11 +18,22 @@ export const ChevronDownIcon: React.FC<{ className?: string }> = ({ className })
 );
 
 export const WandIcon: React.FC<{ className?: string }> = ({ className }) => (
-  <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c.179-.02.36-.028.546-.028m.546.028v5.714a2.25 2.25 0 00.659 1.591L19 14.5M9.75 3.104C8.625 2.373 7.036 2.373 5.91 3.104m3.84 0C10.875 2.373 12.464 2.373 13.59 3.104m-3.84 0c.179-.02.36-.028.546-.028m3.84 0c.179-.02.36-.028.546-.028m-3.296 8.25c-.218.423-.455.82-.72 1.182a2.25 2.25 0 001.99 3.464c.25.01.5.025.75.04V19.5a2.25 2.25 0 002.25 2.25h.531c.47-1.563.953-3.125 1.455-4.688a2.25 2.25 0 00-1.99-3.464c-.25-.01-.5-.025-.75-.04V7.5a2.25 2.25 0 00-2.25-2.25h-.531c-.47 1.563-.953 3.125-1.455 4.688z" />
-  </svg>
-);
-
+    <svg
+      className={className}
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={1.5}
+      stroke="currentColor"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M11.25 3.75l-.186.372a2.25 2.25 0 01-1.012 1.012L9.75 5.25m1.5-1.5l.186.372a2.25 2.25 0 001.012 1.012L13.5 5.25m-2.25-1.5V2.25m0 1.5l-.186-.372a2.25 2.25 0 00-1.012-1.012L9.75 2.25m1.5 1.5l.186-.372a2.25 2.25 0 011.012-1.012L13.5 2.25M6 18.75l-1.5 1.5m0-1.5l1.5 1.5M18 5.25l1.5-1.5m0 1.5L18 3.75m-9 9.75l6 6"
+      />
+    </svg>
+  );
+  
 export const TimeIcon: React.FC<{ className?: string }> = ({ className }) => (
   <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
     <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -153,5 +164,51 @@ export const PlayIcon: React.FC<{ className?: string }> = ({ className }) => (
 export const PauseIcon: React.FC<{ className?: string }> = ({ className }) => (
     <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25v13.5m-6-13.5v13.5" />
+    </svg>
+);
+
+export const DiceIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width="24"
+    height="24"
+    viewBox="0 0 24 24"
+    className={className}
+  >
+    <defs>
+      <linearGradient id="diceGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor="#2DD4BF" />
+        <stop offset="100%" stopColor="#3B82F6" />
+      </linearGradient>
+    </defs>
+    <rect width="18" height="18" x="3" y="3" rx="2" ry="2" fill="url(#diceGradient)" />
+    <circle cx="8" cy="8" r="1.5" fill="white" />
+    <circle cx="16" cy="8" r="1.5" fill="white" />
+    <circle cx="12" cy="12" r="1.5" fill="white" />
+    <circle cx="8" cy="16" r="1.5" fill="white" />
+    <circle cx="16" cy="16" r="1.5" fill="white" />
+  </svg>
+);
+
+export const RefreshIcon: React.FC<{ className?: string }> = ({ className }) => (
+    <svg
+      className={className}
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={1.5}
+      stroke="currentColor"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M16.023 9.348h4.992V4.356m0 0l-3.181 3.181a8.25 8.25 0 11-11.664 0L2.985 4.356"
+      />
+    </svg>
+  );
+  
+export const TrashIcon: React.FC<{ className?: string }> = ({ className }) => (
+    <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.134-2.036-2.134H8.716c-1.126 0-2.036.954-2.036 2.134v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
     </svg>
 );

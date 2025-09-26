@@ -31,6 +31,25 @@
       .animate-fade-in-fast {
         animation: fadeIn 0.2s ease-out forwards;
       }
+      /* NEW: Add dice roll animation */
+      @keyframes dice-roll {
+        0% { transform: rotate(0deg) scale(1); }
+        50% { transform: rotate(180deg) scale(1.2); }
+        100% { transform: rotate(360deg) scale(1); }
+      }
+      .animate-dice-roll {
+        animation: dice-roll 0.5s ease-out;
+      }
+
+      /* NEW: Hide number input spinners */
+      input[type=number]::-webkit-outer-spin-button,
+      input[type=number]::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+      }
+      input[type=number] {
+        -moz-appearance: textfield;
+      }
     </style>
 </head>
   <body class="bg-[#F0F2F5]">

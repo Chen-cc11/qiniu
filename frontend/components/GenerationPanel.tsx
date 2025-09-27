@@ -1,7 +1,7 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import type { TaskStatus, Model } from '../types';
 import { GenerationMode } from '../types';
-import { WandIcon, TimeIcon, AiIcon, ImageIcon, XIcon, ChevronLeftIcon, ChevronRightIcon, XCircleIcon, LogoIcon, TrashIcon } from './icons';
+import { WandIcon, TimeIcon, AiIcon, ImageIcon, XIcon, ChevronLeftIcon, ChevronRightIcon, XCircleIcon, LogoIcon, TrashIcon, SpinnerIcon } from './icons';
 
 interface GenerationPanelProps {
   mode: GenerationMode;
@@ -74,6 +74,58 @@ const GenerationPanel: React.FC<GenerationPanelProps> = ({ mode, onModeChange, p
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [imagePreviewUrl, setImagePreviewUrl] = React.useState<string | null>(null);
   const [activeTab, setActiveTab] = React.useState<'recommended' | 'history'>('recommended');
+  
+  // 新增：为推荐和历史记录添加分页状态
+  const [recommendedPage, setRecommendedPage] = useState(0);
+  const [historyPage, setHistoryPage] = useState(0);
+  const ITEMS_PER_PAGE = 3;
+
+  // 新增：计算分页数据
+  const recommendedTotalPages = Math.ceil((recommendedModels?.length || 0) / ITEMS_PER_PAGE);
+  const historyTotalPages = Math.ceil((historyModels?.length || 0) / ITEMS_PER_PAGE);
+
+  const displayedRecommendedModels = (recommendedModels || []).slice(
+      recommendedPage * ITEMS_PER_PAGE,
+      (recommendedPage + 1) * ITEMS_PER_PAGE
+  );
+  
+  const displayedHistoryModels = (historyModels || []).slice(
+      historyPage * ITEMS_PER_PAGE,
+      (historyPage + 1) * ITEMS_PER_PAGE
+  );
+
+  const StatusIndicator = () => {
+      switch (taskStatus.status) {
+          case 'processing':
+              return (
+                  <div className="flex items-center space-x-1.5 bg-blue-100 text-blue-700 text-xs font-medium px-2 py-1 rounded-full animate-fade-in">
+                      <SpinnerIcon className="w-3 h-3 animate-spin" />
+                      <span>生成中</span>
+                  </div>
+              );
+          case 'completed':
+              return (
+                  <div className="flex items-center space-x-1.5 bg-green-100 text-green-700 text-xs font-medium px-2 py-1 rounded-full animate-fade-in">
+                      <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                      <span>已就绪</span>
+                  </div>
+              );
+          case 'failed':
+               return (
+                  <div className="flex items-center space-x-1.5 bg-red-100 text-red-700 text-xs font-medium px-2 py-1 rounded-full animate-fade-in">
+                      <XCircleIcon className="w-4 h-4" />
+                      <span>生成失败</span>
+                  </div>
+              );
+          default: // idle
+              return (
+                  <div className="flex items-center space-x-1.5 bg-gray-100 text-gray-700 text-xs font-medium px-2 py-1 rounded-full animate-fade-in">
+                      <span className="w-2 h-2 bg-gray-400 rounded-full"></span>
+                      <span>空闲</span>
+                  </div>
+              );
+      }
+  };
 
   useEffect(() => {
     let url: string | null = null;
@@ -111,12 +163,7 @@ const GenerationPanel: React.FC<GenerationPanelProps> = ({ mode, onModeChange, p
         <div className="bg-white p-6 rounded-xl shadow-sm">
             <div className="flex items-center space-x-3 mb-4">
               <h2 className="text-lg font-bold text-gray-800">模型生成</h2>
-              {taskStatus.status === 'completed' && (
-                <div className="flex items-center space-x-1.5 bg-green-100 text-green-700 text-xs font-medium px-2 py-1 rounded-full animate-fade-in">
-                  <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-                  <span>模型准备就绪</span>
-                </div>
-              )}
+              <StatusIndicator />
             </div>
             <div className="flex border border-gray-200 rounded-lg p-1 bg-gray-50 mb-4">
                 <button 
@@ -247,31 +294,80 @@ const GenerationPanel: React.FC<GenerationPanelProps> = ({ mode, onModeChange, p
                         </div>
                     </div>
 
-                    <div className="flex-grow relative overflow-auto">
+                    {/* 修复：重构容器以修复布局跳动并将分页箭头移到外部 */}
+                    <div className="flex-grow flex items-center justify-center">
                         {activeTab === 'recommended' && (
-                            <div className="relative h-full flex items-center justify-center">
-                                <div className="grid grid-cols-3 gap-3 w-full">
-                                    {(recommendedModels || []).map((model) => (
-                                      <ModelThumbnail key={model.url} model={model} onSelect={onModelSelect} />
-                                    ))}
-                                </div>
+                            <div className="w-full flex items-center justify-center gap-2">
+                                <button
+                                    onClick={() => setRecommendedPage(p => Math.max(0, p - 1))}
+                                    disabled={recommendedPage === 0}
+                                    className="p-1 bg-white rounded-full shadow-md hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex-shrink-0"
+                                    aria-label="上一页"
+                                    style={{ visibility: recommendedTotalPages > 1 ? 'visible' : 'hidden' }}
+                                >
+                                    <ChevronLeftIcon className="w-5 h-5 text-gray-600" />
+                                </button>
+                                
+                                {displayedRecommendedModels.length > 0 ? (
+                                    <div className="grid grid-cols-3 gap-3 w-full">
+                                        {displayedRecommendedModels.map((model) => (
+                                          <ModelThumbnail key={model.url} model={model} onSelect={onModelSelect} />
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="flex-grow flex flex-col items-center justify-center h-full w-full text-center text-gray-400">
+                                        <p className="font-semibold text-gray-600">暂无推荐</p>
+                                    </div>
+                                )}
+                                
+                                <button
+                                    onClick={() => setRecommendedPage(p => Math.min(recommendedTotalPages - 1, p + 1))}
+                                    disabled={recommendedPage === recommendedTotalPages - 1}
+                                    className="p-1 bg-white rounded-full shadow-md hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex-shrink-0"
+                                    aria-label="下一页"
+                                    style={{ visibility: recommendedTotalPages > 1 ? 'visible' : 'hidden' }}
+                                >
+                                    <ChevronRightIcon className="w-5 h-5 text-gray-600" />
+                                </button>
                             </div>
                         )}
                         {activeTab === 'history' && (
-                             (historyModels || []).length > 0 ? (
-                                <div className="grid grid-cols-3 gap-3 w-full">
-                                    {(historyModels || []).map((model) => (
-                                        <ModelThumbnail key={model.url} model={model} onSelect={onModelSelect} onDelete={onDeleteModel} />
-                                    ))}
-                                </div>
-                            ) : (
-                                <div className="flex items-center justify-center h-full text-center text-gray-400">
-                                    <div>
-                                        <p className="font-semibold text-gray-600">暂无历史记录</p>
-                                        <p className="text-xs mt-1">保存的模型将显示在这里</p>
+                             <div className="w-full flex items-center justify-center gap-2">
+                                 <button
+                                    onClick={() => setHistoryPage(p => Math.max(0, p - 1))}
+                                    disabled={historyPage === 0}
+                                    className="p-1 bg-white rounded-full shadow-md hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex-shrink-0"
+                                    aria-label="上一页"
+                                    style={{ visibility: historyTotalPages > 1 ? 'visible' : 'hidden' }}
+                                >
+                                    <ChevronLeftIcon className="w-5 h-5 text-gray-600" />
+                                </button>
+
+                                {displayedHistoryModels.length > 0 ? (
+                                    <div className="grid grid-cols-3 gap-3 w-full">
+                                        {displayedHistoryModels.map((model) => (
+                                            <ModelThumbnail key={model.url} model={model} onSelect={onModelSelect} onDelete={onDeleteModel} />
+                                        ))}
                                     </div>
-                                </div>
-                            )
+                                ) : (
+                                    <div className="flex-grow flex flex-col items-center justify-center h-full w-full text-center text-gray-400">
+                                        <div>
+                                            <p className="font-semibold text-gray-600">暂无历史记录</p>
+                                            <p className="text-xs mt-1">保存的模型将显示在这里</p>
+                                        </div>
+                                    </div>
+                                )}
+
+                                <button
+                                    onClick={() => setHistoryPage(p => Math.min(historyTotalPages - 1, p + 1))}
+                                    disabled={historyPage === historyTotalPages - 1}
+                                    className="p-1 bg-white rounded-full shadow-md hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex-shrink-0"
+                                    aria-label="下一页"
+                                    style={{ visibility: historyTotalPages > 1 ? 'visible' : 'hidden' }}
+                                >
+                                    <ChevronRightIcon className="w-5 h-5 text-gray-600" />
+                                </button>
+                            </div>
                         )}
                     </div>
                 </div>

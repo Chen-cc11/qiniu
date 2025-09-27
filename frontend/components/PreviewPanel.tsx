@@ -1,11 +1,10 @@
-// To resolve the 'model-viewer' JSX error, the module containing the global type
-// augmentations must be imported for its side effects *before* React is imported.
-// FIX: Reordered imports to ensure '../types' is imported before React.
-import '../types';
+// FIX: Removed the local side-effect import of '../types'. With the root cause of the JSX
+// type error now resolved in the application's entry point (index.tsx), this local
+// import is no longer necessary.
+import React, { useRef, useCallback, useState, useEffect } from 'react';
 // 修复：从集中的类型文件导入ModelViewerElement，而不是在本地定义。
 import type { TaskStatus, ModelViewerElement, Model } from '../types';
-import React, { useRef, useCallback, useState, useEffect } from 'react';
-import { ResetIcon, ZoomInIcon, ZoomOutIcon, SaveIcon, ExportIcon, FullScreenIcon, ExitFullScreenIcon, PlayIcon, PauseIcon, SpinnerIcon } from './icons';
+import { ResetIcon, ZoomInIcon, ZoomOutIcon, SaveIcon, ExportIcon, FullScreenIcon, ExitFullScreenIcon, PlayIcon, PauseIcon, SpinnerIcon, TrashIcon } from './icons';
 
 // 修复：<model-viewer>自定义元素的类型定义，包括其JSX内置元素声明，
 // 已经集中在'types.ts'中。这确保了整个应用的类型安全和一致性。
@@ -14,6 +13,8 @@ interface PreviewPanelProps {
   taskStatus: TaskStatus;
   displayedModel: Model;
   onSaveModel: (model: Model) => void;
+  onDeleteModel: (model: Model) => void;
+  isSaved: boolean;
 }
 
 const IconButton: React.FC<{ icon: React.ReactNode; onClick?: () => void, 'aria-label': string }> = ({ icon, onClick, 'aria-label': ariaLabel }) => (
@@ -22,7 +23,7 @@ const IconButton: React.FC<{ icon: React.ReactNode; onClick?: () => void, 'aria-
     </button>
 );
 
-const PreviewPanel: React.FC<PreviewPanelProps> = ({ taskStatus, displayedModel, onSaveModel }) => {
+const PreviewPanel: React.FC<PreviewPanelProps> = ({ taskStatus, displayedModel, onSaveModel, onDeleteModel, isSaved }) => {
   const modelViewerRef = useRef<ModelViewerElement>(null);
   const previewContainerRef = useRef<HTMLDivElement>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -80,11 +81,13 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ taskStatus, displayedModel,
   }, []);
 
   const handleSave = () => {
-    if (!displayedModel.isLocal) {
-        onSaveModel(displayedModel);
-        setSaveSuccess(true);
-        setTimeout(() => setSaveSuccess(false), 3000);
-    }
+    onSaveModel(displayedModel);
+    setSaveSuccess(true);
+    setTimeout(() => setSaveSuccess(false), 3000);
+  };
+
+  const handleDelete = () => {
+    onDeleteModel(displayedModel);
   };
 
   return (
@@ -122,35 +125,43 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ taskStatus, displayedModel,
         </div>
       </div>
       <div className="p-4 flex space-x-3">
-          {!displayedModel.isLocal && (
-              <button 
-                  onClick={handleSave}
-                  className={`flex-1 py-2.5 text-sm font-semibold rounded-lg flex items-center justify-center space-x-2 transition-colors
-                      text-white bg-blue-500 hover:bg-blue-600
-                      ${saveSuccess ? '!bg-green-500 !cursor-not-allowed' : ''}
-                  `}
-                  disabled={saveSuccess}
-              >
-                  {saveSuccess ? (
-                      <>
-                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                          <span>保存成功!</span>
-                      </>
-                  ) : (
-                      <>
-                          <SaveIcon className="w-5 h-5"/>
-                          <span>保存模型</span>
-                      </>
-                  )}
-              </button>
+          {isSaved ? (
+            <button
+                onClick={handleDelete}
+                className="preview-button flex-1 py-2.5 text-sm font-semibold rounded-lg flex items-center justify-center transition-colors text-white bg-red-500 hover:bg-red-600"
+            >
+                <TrashIcon className="hover-icon h-5"/>
+                <span>删除模型</span>
+            </button>
+          ) : (
+            <button 
+                onClick={handleSave}
+                className={`preview-button flex-1 py-2.5 text-sm font-semibold rounded-lg flex items-center justify-center transition-colors
+                    text-white bg-blue-500 hover:bg-blue-600
+                    ${saveSuccess ? '!bg-green-500 !cursor-not-allowed' : ''}
+                `}
+                disabled={saveSuccess}
+            >
+                {saveSuccess ? (
+                    <>
+                        <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                        <span>保存成功!</span>
+                    </>
+                ) : (
+                    <>
+                        <SaveIcon className="hover-icon h-5"/>
+                        <span>保存模型</span>
+                    </>
+                )}
+            </button>
           )}
           <a
               href={displayedModel.url}
               download="generated_model.glb"
               aria-disabled={false}
-              className={`flex-1 py-2.5 text-sm font-semibold rounded-lg flex items-center justify-center space-x-2 transition-colors text-gray-700 bg-gray-100 hover:bg-gray-200`}
+              className="preview-button flex-1 py-2.5 text-sm font-semibold rounded-lg flex items-center justify-center transition-colors text-gray-700 bg-gray-100 hover:bg-gray-200"
           >
-              <ExportIcon className="w-5 h-5"/>
+              <ExportIcon className="hover-icon h-5"/>
               <span>导出文件</span>
           </a>
       </div>

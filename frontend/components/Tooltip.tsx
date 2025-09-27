@@ -16,12 +16,12 @@ const Tooltip: React.FC<{ text: string }> = ({ text }) => {
                 onFocus={() => setVisible(true)}
                 onBlur={() => setVisible(false)}
                 className="text-gray-400 hover:text-gray-600 focus:outline-none"
-                aria-label="More info"
+                aria-label="更多信息"
             >
                 <QuestionMarkIcon className="w-4 h-4" />
             </button>
             {visible && (
-                <div className="absolute bottom-full right-0 mb-2 w-max max-w-xs p-2 text-xs text-white bg-gray-800 rounded-md shadow-lg z-20 animate-fade-in-fast" role="tooltip">
+                <div className="absolute left-full top-1/2 -translate-y-1/2 ml-2 w-max max-w-xs p-2 text-xs text-white bg-gray-800 rounded-md shadow-lg z-20 animate-fade-in-fast" role="tooltip">
                     {text}
                 </div>
             )}

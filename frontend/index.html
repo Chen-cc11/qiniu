@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ModelCraft Pro</title>
+    <title>ModelCraft</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.5.0/model-viewer.min.js"></script>
     <!-- 添加Babel用于在浏览器中转换JSX/TSX -->
@@ -15,8 +15,8 @@
     "react": "https://esm.sh/react@18.3.1",
     "react-dom/client": "https://esm.sh/react-dom@18.3.1/client",
     "react-router-dom": "https://esm.sh/react-router-dom@6.25.1",
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.1.1/",
-    "react/": "https://aistudiocdn.com/react@^19.1.1/"
+    "react/": "https://aistudiocdn.com/react@^19.1.1/",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.1.1/"
   }
 }
 </script>
@@ -31,7 +31,7 @@
       .animate-fade-in-fast {
         animation: fadeIn 0.2s ease-out forwards;
       }
-      /* NEW: Add dice roll animation */
+      /* 新增：添加骰子滚动动画 */
       @keyframes dice-roll {
         0% { transform: rotate(0deg) scale(1); }
         50% { transform: rotate(180deg) scale(1.2); }
@@ -41,7 +41,7 @@
         animation: dice-roll 0.5s ease-out;
       }
 
-      /* NEW: Hide number input spinners */
+      /* 新增：隐藏数字输入框的上下箭头 */
       input[type=number]::-webkit-outer-spin-button,
       input[type=number]::-webkit-inner-spin-button {
         -webkit-appearance: none;
@@ -49,6 +49,43 @@
       }
       input[type=number] {
         -moz-appearance: textfield;
+      }
+
+      /* 新增: 登录按钮悬浮效果 */
+      .flow-indicator {
+        display: inline-block;
+        flex-shrink: 0; /* 防止图标在flex容器中被压缩 */
+        opacity: 0;
+        width: 0;
+        margin-left: 0;
+        font-weight: normal; /* 箭头通常不需要加粗 */
+        font-size: 1.1em; /* 稍微比按钮文字大一点 */
+        line-height: 1; /* 确保垂直对齐 */
+        transition: opacity 0.3s cubic-bezier(0.25, 0.8, 0.25, 1),
+                    width 0.4s cubic-bezier(0.25, 0.8, 0.25, 1),
+                    margin-left 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+      }
+
+      .animated-login-button:hover:not(:disabled) .flow-indicator {
+        opacity: 1;
+        width: 1.2em; /* 给予图标足够的空间 */
+        margin-left: 8px; /* 与文字的间距 */
+      }
+      
+      /* 新增: 预览面板按钮悬浮效果 */
+      .preview-button .hover-icon {
+          width: 0;
+          opacity: 0;
+          transition: width 0.35s cubic-bezier(0.25, 0.8, 0.25, 1), 
+                      opacity 0.3s cubic-bezier(0.25, 0.8, 0.25, 1), 
+                      margin-right 0.35s cubic-bezier(0.25, 0.8, 0.25, 1);
+          margin-right: 0;
+          overflow: hidden;
+      }
+      .preview-button:hover:not(:disabled) .hover-icon {
+          width: 1.25rem; /* Tailwind's w-5 */
+          opacity: 1;
+          margin-right: 0.5rem; /* Tailwind's space-x-2 */
       }
     </style>
 </head>

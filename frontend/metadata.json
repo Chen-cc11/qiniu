@@ -1,5 +1,5 @@
 {
-  "name": "ModelCraft Pro",
-  "description": "A web application for generating 3D models from text or images using AI. Users can customize model parameters like fineness, texture, material, and lighting to craft their desired 3D assets.",
+  "name": "ModelCraft",
+  "description": "一个使用AI从文本或图片生成3D模型的Web应用。用户可以自定义模型的精细度、纹理、材质和光照等参数，来打造他们想要的3D资产。",
   "requestFramePermissions": []
 }

@@ -1,5 +1,6 @@
-// 修复：添加了三斜线指令，以确保React类型被加载用于模块增强。
-/// <reference types="react" />
+// FIX: The triple-slash directive for React was removed as it caused a compilation error.
+// The `import` statement below is the correct way to include React's types in a module.
+// This single fix should resolve all JSX-related errors across the application.
 
 // 修复：导入React使其类型可用于模块增强和JSX内置元素定义。这解决了找不到'react'模块以及无法识别'DetailedHTMLProps'等类型的问题。
 import * as React from 'react';
@@ -26,25 +27,28 @@ export enum TextureQuality {
 
 // 新增：添加模型风格选项。
 export enum ModelStyle {
-    CARTOON = '卡通',
+    NONE = '默认',
     CLAY = '黏土',
-    GOLD = '金属'
+    GOLD = '金属',
+    ANCIENT_BRONZE = '古铜',
+    STEAMPUNK = '蒸汽朋克'
 }
 
 // 新增：为图片生成模式添加纹理对齐选项。
 export enum TextureAlignment {
     ORIGINAL = '原始图像',
-    AUTO = '自动对齐',
+    AUTO = 'AI生成',
 }
 
 
 export interface ModelParameters {
     negativePrompt: string;
     faceLimit: number; // 例如: 10000, 50000, 100000
+    texture: boolean;
     textureQuality: 'standard' | 'detailed';
     // 新增：纹理对齐方式，用于图生3D模式。
-    textureAlignment: 'original_image' | 'auto_align';
-    style:  'cartoon' | 'clay' | 'gold';
+    textureAlignment: 'original_image' | 'ai_generated';
+    style: '' | 'object:clay' | 'gold' | 'ancient_bronze' | 'object:steampunk';
     quad: boolean;
     modelSeed: number | null;
 }

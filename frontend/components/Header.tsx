@@ -29,7 +29,7 @@ const Header: React.FC<HeaderProps> = ({ onLogout, userEmail }) => {
       <nav className="container mx-auto px-4 lg:px-6 py-3 flex justify-between items-center">
         <div className="flex items-center space-x-3 text-blue-600">
           <LogoIcon className="h-8 w-8" />
-          <span className="text-xl font-bold text-gray-800">ModelCraft Pro</span>
+          <span className="text-xl font-bold text-gray-800">ModelCraft</span>
         </div>
         <div className="relative" ref={dropdownRef}>
             <button
@@ -54,7 +54,7 @@ const Header: React.FC<HeaderProps> = ({ onLogout, userEmail }) => {
                             setDropdownOpen(false);
                         }}
                         className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-blue-600 transition-colors flex items-center space-x-2"
-                        aria-label="Logout"
+                        aria-label="登出"
                     >
                         <LogoutIcon className="w-4 h-4" />
                         <span>登出</span>

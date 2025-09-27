@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import type { ModelParameters } from '../types';
 import { FaceLimitPreset, TextureQuality, ModelStyle, GenerationMode, TextureAlignment } from '../types';
 import CustomSelect from './CustomSelect';
@@ -21,8 +21,6 @@ const faceLimitOptions = {
     [FaceLimitPreset.HIGH]: 100000,
 };
 
-// 修复：使用 'as const' 来确保TypeScript推断出选项值的窄字面量类型，
-// 而不是将其拓宽为'string'。这解决了调用onParametersChange时的类型错误。
 const textureQualityOptions = {
     [TextureQuality.STANDARD]: 'standard',
     [TextureQuality.DETAILED]: 'detailed',
@@ -31,14 +29,16 @@ const textureQualityOptions = {
 // 新增：为图生3D模式添加纹理对齐选项
 const textureAlignmentOptions = {
     [TextureAlignment.ORIGINAL]: 'original_image',
-    [TextureAlignment.AUTO]: 'auto_align',
+    [TextureAlignment.AUTO]: 'ai_generated',
 } as const;
 
 // 修复：使用 'as const' 来确保TypeScript推断出选项值的窄字面量类型。
 const styleOptions = {
-    [ModelStyle.CARTOON]: 'cartoon',
-    [ModelStyle.CLAY]: 'clay',
+    [ModelStyle.NONE]: '',
+    [ModelStyle.CLAY]: 'object:clay',
     [ModelStyle.GOLD]: 'gold',
+    [ModelStyle.ANCIENT_BRONZE]: 'ancient_bronze',
+    [ModelStyle.STEAMPUNK]: 'object:steampunk',
 } as const;
 
 // 辅助函数：根据值查找键
@@ -53,19 +53,12 @@ const ParamsPanel: React.FC<{
   mode: GenerationMode;
 }> = ({ parameters, onParametersChange, mode }) => {
 
-    const [isRefreshing, setIsRefreshing] = useState(false);
-
     const handleParamChange = <K extends keyof ModelParameters>(param: K, value: ModelParameters[K]) => {
         onParametersChange(prev => ({ ...prev, [param]: value }));
     };
 
     const handleRandomizeSeed = () => {
-        if (isRefreshing) return;
-        setIsRefreshing(true);
-        setTimeout(() => {
-            handleParamChange('modelSeed', Math.floor(Math.random() * 90000000) + 10000000);
-            setIsRefreshing(false);
-        }, 500); // 对应于动画持续时间
+        handleParamChange('modelSeed', Math.floor(Math.random() * 90000000) + 10000000);
     };
     
     return (
@@ -73,7 +66,7 @@ const ParamsPanel: React.FC<{
             <h2 className="text-lg font-bold mb-6 text-gray-800">高级参数</h2>
             
             {/* 条件渲染：反向提示词仅在文生3D模式下显示 */}
-            {(
+            {mode === GenerationMode.TEXT_TO_3D && (
                 <Section title="反向提示词" tooltip="描述您不希望在模型中看到的内容，例如模糊、丑陋的细节。">
                     <textarea
                         value={parameters.negativePrompt}
@@ -92,6 +85,21 @@ const ParamsPanel: React.FC<{
                     onChange={(val) => handleParamChange('faceLimit', faceLimitOptions[val as FaceLimitPreset])}
                 />
             </Section>
+
+            <Section title="生成纹理">
+                <div className="flex space-x-2">
+                    <button 
+                        onClick={() => handleParamChange('texture', true)}
+                        className={`flex-1 py-2 text-sm rounded-lg transition-colors border ${parameters.texture ? 'bg-blue-500 text-white border-blue-500 font-semibold' : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'}`}>
+                        启用
+                    </button>
+                    <button
+                        onClick={() => handleParamChange('texture', false)} 
+                        className={`flex-1 py-2 text-sm rounded-lg transition-colors border ${!parameters.texture ? 'bg-blue-500 text-white border-blue-500 font-semibold' : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'}`}>
+                        禁用
+                    </button>
+                </div>
+            </Section>
             
             <Section title="纹理质量">
                 <CustomSelect
@@ -103,7 +111,7 @@ const ParamsPanel: React.FC<{
             
             {/* 条件渲染：纹理对齐仅在图生3D模式下显示 */}
             {mode === GenerationMode.IMAGE_TO_3D && (
-                <Section title="纹理对齐" tooltip="选择纹理如何贴合到模型上。'原始图像'会严格按照原图进行投射，'自动对齐'则会由AI优化贴图方式。">
+                <Section title="纹理对齐" tooltip="选择纹理如何贴合到模型上。'原始图像'会严格按照原图进行投射，'AI生成'则会由AI优化贴图方式。">
                     <CustomSelect
                         value={getKeyByValue(textureAlignmentOptions, parameters.textureAlignment) || TextureAlignment.ORIGINAL}
                         options={Object.values(TextureAlignment)}
@@ -114,7 +122,7 @@ const ParamsPanel: React.FC<{
 
             <Section title="模型风格">
                 <CustomSelect
-                    value={getKeyByValue(styleOptions, parameters.style) || ModelStyle.REALISTIC}
+                    value={getKeyByValue(styleOptions, parameters.style) || ModelStyle.NONE}
                     options={Object.values(ModelStyle)}
                     onChange={(val) => handleParamChange('style', styleOptions[val as ModelStyle])}
                 />
@@ -146,11 +154,10 @@ const ParamsPanel: React.FC<{
                     />
                     <button
                         onClick={handleRandomizeSeed}
-                        disabled={isRefreshing}
-                        className="p-2.5 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors flex-shrink-0 disabled:cursor-wait disabled:opacity-50"
+                        className="p-2.5 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors flex-shrink-0"
                         aria-label="生成随机种子"
                     >
-                        <RefreshIcon className={`w-5 h-5 text-gray-600 ${isRefreshing ? 'animate-spin' : ''}`} />
+                        <RefreshIcon className="w-5 h-5 text-gray-600" />
                     </button>
                 </div>
             </Section>

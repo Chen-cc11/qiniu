@@ -1,17 +1,19 @@
+// FIX: Reordered imports to ensure global JSX type augmentations from './types'
+// are loaded before any other module. This is critical for TypeScript to recognize
+// custom elements like <model-viewer> and resolves JSX-related compilation errors
+// throughout the application.
+import './types';
 import React from 'react';
+
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import App from './App';
 
-// FIX: Import types.ts to ensure its global JSX namespace augmentations are applied.
-// This makes TypeScript aware of the <model-viewer> custom element across the app.
-import './types';
-
-// Wait until the model-viewer custom element is defined before rendering the app
+// 等待 model-viewer 自定义元素定义完成后再渲染应用
 customElements.whenDefined('model-viewer').then(() => {
   const rootElement = document.getElementById('root');
   if (!rootElement) {
-    throw new Error("Could not find root element to mount to");
+    throw new Error("找不到用于挂载的根元素");
   }
 
   const root = ReactDOM.createRoot(rootElement);

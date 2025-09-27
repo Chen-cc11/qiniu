@@ -10,7 +10,6 @@ import { apiFetch } from '../utils';
 
 const API_BASE_URL = 'http://localhost:8080'; // 后端服务器地址
 
-// 辅助函数：解析JWT
 const parseJwt = (token: string) => {
   try {
     return JSON.parse(atob(token.split('.')[1]));
@@ -46,7 +45,7 @@ const MainPage: React.FC<MainPageProps> = ({ token, onLogout }) => {
   const [taskStatus, setTaskStatus] = useState<TaskStatus>({ status: 'idle' });
   
   const [inspirationModels] = useState<Model[]>(() => 
-    shuffledModels.slice(1, 4) // 使用接下来的3个作为推荐
+    shuffledModels.slice(1) // 修复：使用所有剩余的模型作为推荐，以确保分页箭头正确显示
   );
   
   const [prompt, setPrompt] = useState<string>('');
@@ -89,6 +88,10 @@ const MainPage: React.FC<MainPageProps> = ({ token, onLogout }) => {
         localStorage.setItem('modelHistory', JSON.stringify(newHistory));
         return newHistory;
     });
+    // 新增：如果删除的是当前正在预览的模型，则将预览重置为默认模型。
+    if (displayedModel.url === modelToDelete.url) {
+      setDisplayedModel(shuffledModels[0]);
+    }
   };
 
   const handleModeChange = (newMode: GenerationMode) => {
@@ -124,8 +127,8 @@ const MainPage: React.FC<MainPageProps> = ({ token, onLogout }) => {
         const payload: { [key: string]: any } = {
           prompt: prompt,
           faceLimit: params.faceLimit,
+          texture: params.texture,
           textureQuality: params.textureQuality,
-          style: params.style,
           quad: params.quad,
         };
         if (params.negativePrompt.trim()) {
@@ -133,6 +136,9 @@ const MainPage: React.FC<MainPageProps> = ({ token, onLogout }) => {
         }
         if (params.modelSeed !== null && !isNaN(params.modelSeed)) {
           payload.modelSeed = params.modelSeed;
+        }
+        if (params.style) { // 只有在选择了有效风格时才发送
+            payload.style = params.style;
         }
         
         data = await apiFetch(
@@ -149,10 +155,13 @@ const MainPage: React.FC<MainPageProps> = ({ token, onLogout }) => {
         const formData = new FormData();
         formData.append('image', imageFile!);
         formData.append('faceLimit', String(params.faceLimit));
+        formData.append('texture', String(params.texture));
         formData.append('textureQuality', params.textureQuality);
         formData.append('textureAlignment', params.textureAlignment);
-        formData.append('style', params.style);
         formData.append('quad', String(params.quad));
+        if (params.style) { // 只有在选择了有效风格时才发送
+            formData.append('style', params.style);
+        }
         if (params.modelSeed !== null) {
           formData.append('modelSeed', String(params.modelSeed));
         }
@@ -248,6 +257,9 @@ const MainPage: React.FC<MainPageProps> = ({ token, onLogout }) => {
     return () => clearInterval(simulationInterval);
   }, [taskStatus.status]);
 
+  // 新增：检查当前模型是否已保存在历史记录中
+  const isModelSaved = history.some(m => m.url === displayedModel.url);
+
   return (
     <div className="min-h-screen bg-[#F0F2F5] font-sans text-gray-800 flex flex-col">
       <Header onLogout={onLogout} userEmail={userEmail} />
@@ -287,7 +299,9 @@ const MainPage: React.FC<MainPageProps> = ({ token, onLogout }) => {
           <PreviewPanel 
             taskStatus={taskStatus} 
             displayedModel={displayedModel} 
-            onSaveModel={handleSaveModel} 
+            onSaveModel={handleSaveModel}
+            onDeleteModel={handleDeleteModel}
+            isSaved={isModelSaved}
           />
         </div>
       </main>

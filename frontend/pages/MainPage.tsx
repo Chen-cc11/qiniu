@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import Header from '../components/Header';
 import ParamsPanel from '../components/ParamsPanel';
 import GenerationPanel from '../components/GenerationPanel';
@@ -10,299 +10,384 @@ import { apiFetch } from '../utils';
 
 const API_BASE_URL = 'http://localhost:8080'; // 后端服务器地址
 
+// 声明 JSZip，因为它是由<script>标签全局引入的
+declare const JSZip: any;
+
+
+// 辅助函数：解析JWT
 const parseJwt = (token: string) => {
-  try {
-    return JSON.parse(atob(token.split('.')[1]));
-  } catch (e) {
-    return null;
-  }
+  try {
+    return JSON.parse(atob(token.split('.')[1]));
+  } catch (e) {
+    return null;
+  }
 };
 
 // 辅助函数：打乱数组 (Fisher-Yates shuffle)
 const shuffleArray = (array: Model[]): Model[] => {
-  const newArray = [...array];
-  for (let i = newArray.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [newArray[i], newArray[j]] = [newArray[j], newArray[i]];
-  }
-  return newArray;
+  const newArray = [...array];
+  for (let i = newArray.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [newArray[i], newArray[j]] = [newArray[j], newArray[i]];
+  }
+  return newArray;
 };
 
-
-interface MainPageProps {
-    token: string;
-    onLogout: () => void;
-}
-
-const MainPage: React.FC<MainPageProps> = ({ token, onLogout }) => {
-  const [params, setParams] = useState<ModelParameters>(DEFAULT_MODEL_PARAMETERS);
-  const [generationMode, setGenerationMode] = useState<GenerationMode>(GenerationMode.TEXT_TO_3D);
-  
-  // 初始渲染时打乱模型并分发它们
-  const [shuffledModels] = useState(() => shuffleArray(LOCAL_MODELS));
-  
-  const [displayedModel, setDisplayedModel] = useState<Model>(shuffledModels[0]);
-  const [taskStatus, setTaskStatus] = useState<TaskStatus>({ status: 'idle' });
-  
-  const [inspirationModels] = useState<Model[]>(() => 
-    shuffledModels.slice(1) // 修复：使用所有剩余的模型作为推荐，以确保分页箭头正确显示
-  );
-  
-  const [prompt, setPrompt] = useState<string>('');
+const MainPage: React.FC<{ token: string, onLogout: () => void }> = ({ token, onLogout }) => {
+  const [mode, setMode] = useState<GenerationMode>(GenerationMode.TEXT_TO_3D);
+  const [prompt, setPrompt] = useState('');
   const [imageFile, setImageFile] = useState<File | null>(null);
+  const [parameters, setParameters] = useState<ModelParameters>(DEFAULT_MODEL_PARAMETERS);
+  const [taskStatus, setTaskStatus] = useState<TaskStatus>({ status: 'idle' });
   const [taskId, setTaskId] = useState<string | null>(null);
-  const [userEmail, setUserEmail] = useState<string | null>(null);
-  const [history, setHistory] = useState<Model[]>([]);
+  const [displayedModel, setDisplayedModel] = useState<Model>(LOCAL_MODELS[0]);
+  const [recommendedModels, setRecommendedModels] = useState<Model[]>([]);
+  const [userHistory, setUserHistory] = useState<Model[]>([]);
+  
+  const pollIntervalRef = useRef<number | null>(null);
+  const progressIntervalRef = useRef<number | null>(null); // 新增：为进度模拟器添加ref
+  const [pollCount, setPollCount] = useState(0);
+  const MAX_POLLS = 60; // 5分钟超时 (60 * 5s)
 
-  useEffect(() => {
-    if (token) {
-        const decoded = parseJwt(token);
-        if (decoded && decoded.email) {
-            setUserEmail(decoded.email);
-        }
-    }
-  }, [token]);
+  const userEmail = parseJwt(token)?.email || null;
+  const isModelSaved = userHistory.some(m => m.url === displayedModel.url && !m.isLocal);
 
+  // 新增：在组件挂载时打乱推荐模型
   useEffect(() => {
-    const storedHistory = localStorage.getItem('modelHistory');
-    if (storedHistory) {
-      setHistory(JSON.parse(storedHistory));
+    setRecommendedModels(shuffleArray(LOCAL_MODELS));
+  }, []);
+  
+  // 新增：在组件挂载时从localStorage加载历史记录
+  useEffect(() => {
+    try {
+      const savedHistory = localStorage.getItem('modelHistory');
+      if (savedHistory) {
+        setUserHistory(JSON.parse(savedHistory));
+      }
+    } catch (error) {
+      console.error("无法加载或解析模型历史记录:", error);
+      setUserHistory([]);
     }
   }, []);
 
-  const handleSaveModel = (modelToSave: Model) => {
-    setHistory(prevHistory => {
-        // 避免重复
-        if (prevHistory.some(m => m.url === modelToSave.url)) {
-            return prevHistory;
-        }
-        const newHistory = [modelToSave, ...prevHistory];
-        localStorage.setItem('modelHistory', JSON.stringify(newHistory));
-        return newHistory;
-    });
-  };
-
-  const handleDeleteModel = (modelToDelete: Model) => {
-    setHistory(prevHistory => {
-        const newHistory = prevHistory.filter(m => m.url !== modelToDelete.url);
-        localStorage.setItem('modelHistory', JSON.stringify(newHistory));
-        return newHistory;
-    });
-    // 新增：如果删除的是当前正在预览的模型，则将预览重置为默认模型。
-    if (displayedModel.url === modelToDelete.url) {
-      setDisplayedModel(shuffledModels[0]);
-    }
-  };
-
-  const handleModeChange = (newMode: GenerationMode) => {
-    if (newMode !== generationMode) {
-      setGenerationMode(newMode);
-      setPrompt('');
-      setImageFile(null);
-    }
-  };
-
-  const handleModelSelect = (model: Model) => {
-    if (taskStatus.status !== 'processing') {
-      setDisplayedModel(model);
-      setTaskStatus({ status: 'idle' });
-    }
-  };
-
-  const handleGenerate = useCallback(async () => {
-    const isTextMode = generationMode === GenerationMode.TEXT_TO_3D;
-    const isImageMode = generationMode === GenerationMode.IMAGE_TO_3D;
-
-    if (taskStatus.status === 'processing' || (isTextMode && prompt.trim() === '') || (isImageMode && !imageFile)) {
-      return;
-    }
-
-    setTaskId(null);
-    setTaskStatus({ status: 'processing', progress: 0, eta: undefined, message: '正在创建任务...' });
-
+  // 新增：当历史记录更新时，保存到localStorage
+  useEffect(() => {
     try {
-      let data;
-      if (isTextMode) {
-        // 根据新的API结构构建负载
-        const payload: { [key: string]: any } = {
-          prompt: prompt,
-          faceLimit: params.faceLimit,
-          texture: params.texture,
-          textureQuality: params.textureQuality,
-          quad: params.quad,
-        };
-        if (params.negativePrompt.trim()) {
-          payload.negativePrompt = params.negativePrompt.trim();
+      localStorage.setItem('modelHistory', JSON.stringify(userHistory));
+    } catch (error) {
+      console.error("无法保存模型历史记录:", error);
+    }
+  }, [userHistory]);
+
+  const handleLogoutAndClear = () => {
+    if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+    }
+    if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+        progressIntervalRef.current = null;
+    }
+    onLogout();
+  };
+  
+  const handleUnauthorized = useCallback(() => {
+    console.error("认证失败或令牌过期，正在登出。");
+    handleLogoutAndClear();
+  }, [onLogout]);
+
+    
+  // 新增：处理从ZIP文件中提取模型的核心逻辑
+  const handleModelExtraction = useCallback(async (modelData: { result_url: string, thumbnail_url: string }) => {
+    try {
+        // 后端有一个代理来避免CORS问题
+        const proxiedUrl = `${API_BASE_URL}/proxy/model?url=${encodeURIComponent(modelData.result_url)}`;
+        const response = await fetch(proxiedUrl);
+        
+        if (!response.ok) {
+            throw new Error(`下载模型压缩包失败 (状态码: ${response.status})。`);
         }
-        if (params.modelSeed !== null && !isNaN(params.modelSeed)) {
-          payload.modelSeed = params.modelSeed;
-        }
-        if (params.style) { // 只有在选择了有效风格时才发送
-            payload.style = params.style;
+
+        const zipBlob = await response.blob();
+        const zip = await JSZip.loadAsync(zipBlob);
+        
+        let glbFile: any = null;
+        zip.forEach((relativePath: string, file: any) => {
+            if (relativePath.toLowerCase().endsWith('.glb')) {
+                glbFile = file;
+            }
+        });
+
+        if (!glbFile) {
+            throw new Error('压缩包中未找到.glb模型文件。');
         }
         
-        data = await apiFetch(
-          `${API_BASE_URL}/generate/text`,
-          {
-            method: 'POST',
-            body: JSON.stringify(payload),
-          },
-          token,
-          onLogout
-        );
-      } else { // 图片模式
-        // 更新：根据新的API规范，将所有参数与图片文件一起打包到FormData中
-        const formData = new FormData();
-        formData.append('image', imageFile!);
-        formData.append('faceLimit', String(params.faceLimit));
-        formData.append('texture', String(params.texture));
-        formData.append('textureQuality', params.textureQuality);
-        formData.append('textureAlignment', params.textureAlignment);
-        formData.append('quad', String(params.quad));
-        if (params.style) { // 只有在选择了有效风格时才发送
-            formData.append('style', params.style);
-        }
-        if (params.modelSeed !== null) {
-          formData.append('modelSeed', String(params.modelSeed));
-        }
+        const glbBlob = await glbFile.async('blob');
+        const modelUrl = URL.createObjectURL(glbBlob);
 
-        data = await apiFetch(
-          `${API_BASE_URL}/generate/image`,
-          {
-            method: 'POST',
-            body: formData,
-          },
-          token,
-          onLogout
-        );
-      }
-
-      setTaskId(data.taskID);
-      setTaskStatus(prev => ({ ...(prev as any), progress: 5, message: '任务已创建，等待处理...' }));
+        const newModel: Model = { url: modelUrl, poster: modelData.thumbnail_url || '' };
+        
+        setDisplayedModel(newModel);
+        setTaskStatus({ status: 'completed', model: newModel });
 
     } catch (error) {
-      if (error instanceof Error && error.message === '认证失败') {
-        console.log("会话已过期。用户已登出。");
-        return;
-      }
-      const errorMessage = error instanceof Error ? error.message : '未知错误';
-      setTaskStatus({ status: 'failed', error: `生成请求失败: ${errorMessage}` });
-      const randomModel = LOCAL_MODELS[Math.floor(Math.random() * LOCAL_MODELS.length)];
-      setDisplayedModel(randomModel);
+        const errorMessage = error instanceof Error ? error.message : '发生未知错误。';
+        setTaskStatus({ status: 'failed', error: `模型解压失败: ${errorMessage}` });
     }
-  }, [prompt, params, taskStatus.status, generationMode, imageFile, token, onLogout]);
+  }, []);
 
-  useEffect(() => {
-    if (!taskId || taskStatus.status === 'completed' || taskStatus.status === 'failed') {
-      return;
+
+  const pollTaskStatus = useCallback(async (currentTaskId: string) => {
+    // 增加轮询计数器
+    setPollCount(prevCount => {
+        if (prevCount + 1 >= MAX_POLLS) {
+            if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+            if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
+            pollIntervalRef.current = null;
+            progressIntervalRef.current = null;
+            setTaskStatus({ status: 'failed', error: '任务超时，请稍后重试。' });
+        }
+        return prevCount + 1;
+    });
+
+    try {
+        const url = `${API_BASE_URL}/tasks/${currentTaskId}/status`;
+        const data = await apiFetch(url, { method: 'GET' }, token, handleUnauthorized);
+        
+        const { status, estimated_remaining_time, result_url, thumbnail_url, error_message } = data;
+
+        const stopPolling = () => {
+            if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+            if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
+            pollIntervalRef.current = null;
+            progressIntervalRef.current = null;
+            setPollCount(0);
+        };
+
+        switch (status) {
+            case 'completed':
+            case 'DONE':
+                stopPolling();
+                setTaskStatus(prev => ({ ...prev, status: 'processing', progress: 100 })); // 最终进度100%
+                if (result_url && result_url.toLowerCase().endsWith('.zip')) {
+                    setTaskStatus({ status: 'unzipping' });
+                    handleModelExtraction({ result_url, thumbnail_url });
+                } else if (result_url) {
+                    const newModel = { url: result_url, poster: thumbnail_url };
+                    setDisplayedModel(newModel);
+                    setTaskStatus({ status: 'completed', model: newModel });
+                } else {
+                    setTaskStatus({ status: 'failed', error: '任务完成但未返回模型URL。' });
+                }
+                break;
+            case 'failed':
+                stopPolling();
+                setTaskStatus({ status: 'failed', error: error_message || '任务失败，未提供具体原因。' });
+                break;
+            case 'processing':
+            case 'RUN':
+                // 修复：仅更新ETA，让前端模拟器处理进度条，避免跳动
+                setTaskStatus(prev => {
+                    if (prev.status === 'processing' || prev.status === 'idle') {
+                        return { 
+                            ...prev, 
+                            status: 'processing',
+                            eta: estimated_remaining_time,
+                        };
+                    }
+                    return prev;
+                });
+                break;
+            default:
+                break;
+        }
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : "未知错误";
+        if (errorMessage === '认证失败') {
+            if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+            if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
+            pollIntervalRef.current = null;
+            progressIntervalRef.current = null;
+        }
+    }
+  }, [token, handleUnauthorized, handleModelExtraction]);
+
+  // 新增：中断生成任务的函数
+  const handleCancelGeneration = useCallback(() => {
+      if (pollIntervalRef.current) {
+          clearInterval(pollIntervalRef.current);
+          pollIntervalRef.current = null;
+      }
+      if (progressIntervalRef.current) {
+          clearInterval(progressIntervalRef.current);
+          progressIntervalRef.current = null;
+      }
+      setTaskStatus({ status: 'idle' });
+      setTaskId(null);
+      setPollCount(0);
+  }, []);
+
+  const handleGenerate = useCallback(async () => {
+    if (taskStatus.status === 'processing' || taskStatus.status === 'unzipping') return;
+
+    // 清理之前的任务状态
+    handleCancelGeneration();
+    
+    // 修复：改进进度模拟，使其更平滑且独立于后端响应
+    let progress = 5;
+    setTaskStatus({ status: 'processing', progress: 5, eta: 300, message: '正在初始化...' });
+
+    if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
+    progressIntervalRef.current = window.setInterval(() => {
+        setTaskStatus(prev => {
+            if (prev.status === 'processing') {
+                // 模拟进度条缓慢增长，但在90%处停止，等待最终结果
+                const newProgress = prev.progress ? Math.min(90, prev.progress + 2) : 5;
+                return { ...prev, progress: newProgress };
+            }
+            return prev;
+        });
+    }, 2000);
+
+
+    let url: string;
+    let body: any;
+
+    if (mode === GenerationMode.TEXT_TO_3D) {
+      url = `${API_BASE_URL}/generate/text`;
+      const textParams = {
+          prompt,
+          face_limit: parameters.faceLimit,
+          texture: parameters.texture,
+          texture_quality: parameters.textureQuality,
+          style: parameters.style,
+          quad: parameters.quad,
+          negative_prompt: parameters.negativePrompt,
+          model_seed: parameters.modelSeed,
+      };
+      body = JSON.stringify(textParams);
+    } else {
+        if (!imageFile) {
+            setTaskStatus({ status: 'failed', error: '请先上传图片。' });
+            if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
+            return;
+        }
+        url = `${API_BASE_URL}/generate/image`;
+        const formData = new FormData();
+        formData.append('image', imageFile);
+        const imageParams = {
+            face_limit: parameters.faceLimit,
+            texture: parameters.texture,
+            texture_quality: parameters.textureQuality,
+            style: parameters.style,
+            quad: parameters.quad,
+            texture_alignment: parameters.textureAlignment,
+            model_seed: parameters.modelSeed,
+        };
+        Object.entries(imageParams).forEach(([key, value]) => {
+            if (value !== null && value !== undefined) {
+              formData.append(key, String(value));
+            }
+        });
+        body = formData;
     }
 
-    const interval = setInterval(async () => {
-      try {
-        const data = await apiFetch(
-          `${API_BASE_URL}/tasks/${taskId}/status`,
-          { method: 'GET' },
-          token,
-          onLogout
-        );
+    try {
+      const data = await apiFetch(url, { method: 'POST', body }, token, handleUnauthorized);
+      const newTaskId = data.taskID || data.task_id;
 
-        if (data.status === 'completed') {
-            clearInterval(interval);
-            const newModel = { url: data.result_url, poster: '', isLocal: false };
-            setTaskStatus({ status: 'completed', model: newModel });
-            setDisplayedModel(newModel);
-        } else if (data.status === 'failed') {
-            clearInterval(interval);
-            setTaskStatus({ status: 'failed', error: data.error_message || '模型生成失败' });
-            const randomModel = LOCAL_MODELS[Math.floor(Math.random() * LOCAL_MODELS.length)];
-            setDisplayedModel(randomModel);
-        } else if (data.status === 'processing' || data.status === 'pending') {
-            // 后端真实进度更新（如果API提供）
-            // setTaskStatus(prev => ({ ...prev, progress: data.progress, eta: data.eta }));
-        }
-      } catch (error) {
-        clearInterval(interval);
-        if (error instanceof Error && error.message === '认证失败') {
-          console.log("轮询期间会话已过期。用户已登出。");
-        } else {
-          setTaskStatus({ status: 'failed', error: '轮询任务状态时出错' });
-          const randomModel = LOCAL_MODELS[Math.floor(Math.random() * LOCAL_MODELS.length)];
-          setDisplayedModel(randomModel);
-        }
+      if (!newTaskId) {
+        const errorMessage = data.message || '响应中未找到task_id。';
+        throw new Error(errorMessage);
       }
-    }, 5000);
+      
+      setTaskId(newTaskId);
 
-    return () => clearInterval(interval);
-  }, [taskId, taskStatus.status, token, onLogout]);
+      // 立即开始轮询
+      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = window.setInterval(() => {
+        pollTaskStatus(newTaskId);
+      }, 5000);
 
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : '发生未知错误';
+        setTaskStatus({ status: 'failed', error: `生成请求失败: ${errorMessage}` });
+        // 请求失败时，清理所有定时器
+        if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
+        if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+    }
+  }, [mode, prompt, imageFile, parameters, taskStatus.status, token, handleUnauthorized, pollTaskStatus, handleCancelGeneration]);
+
+  // 组件卸载时清理定时器
   useEffect(() => {
-    if (taskStatus.status !== 'processing') return;
-
-    let currentProgress = taskStatus.progress ?? 5;
-    let currentEta = 60;
-
-    const simulationInterval = setInterval(() => {
-      if (currentProgress < 95) { currentProgress += 1; }
-      if (currentEta > 5) { currentEta -= 1; }
-
-      setTaskStatus(prev => {
-        if (prev.status !== 'processing') {
-          clearInterval(simulationInterval);
-          return prev;
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+      }
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+      }
+    };
+  }, []);
+  
+  const handleSaveModel = useCallback((modelToSave: Model) => {
+    setUserHistory(prev => {
+        // 检查模型是否已存在（基于URL）
+        if (prev.some(m => m.url === modelToSave.url)) {
+            return prev;
         }
-        return { ...prev, progress: currentProgress, eta: currentEta };
-      });
-    }, 1000);
+        // 将新模型添加到历史记录的开头
+        return [modelToSave, ...prev];
+    });
+  }, []);
 
-    return () => clearInterval(simulationInterval);
-  }, [taskStatus.status]);
-
-  // 新增：检查当前模型是否已保存在历史记录中
-  const isModelSaved = history.some(m => m.url === displayedModel.url);
+  const handleDeleteModel = useCallback((modelToDelete: Model) => {
+    setUserHistory(prev => prev.filter(m => m.url !== modelToDelete.url));
+    // 如果删除的是当前显示的模型，则切换到默认模型
+    if (displayedModel.url === modelToDelete.url) {
+        setDisplayedModel(LOCAL_MODELS[0]);
+    }
+  }, [displayedModel]);
+  
 
   return (
-    <div className="min-h-screen bg-[#F0F2F5] font-sans text-gray-800 flex flex-col">
-      <Header onLogout={onLogout} userEmail={userEmail} />
-      <main className="flex-grow container mx-auto p-4 lg:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
-        <div className="lg:col-span-3">
-          {/* 
-            修复：为ParamsPanel添加了 'key' 属性。
-            当 'generationMode' 改变时，这会强制React重新挂载该组件，
-            从而确保UI（例如显示/隐藏“反向提示词”或“纹理对齐”）
-            能够可靠地更新。这是一个解决组件在prop变化时未按预期
-            重新渲染问题的有效策略。
-          */}
-          <ParamsPanel
-            key={generationMode}
-            parameters={params}
-            onParametersChange={setParams}
-            mode={generationMode}
-          />
-        </div>
-        <div className="lg:col-span-5">
-          <GenerationPanel
-            mode={generationMode}
-            onModeChange={handleModeChange}
-            prompt={prompt}
-            onPromptChange={setPrompt}
-            imageFile={imageFile}
-            onImageFileChange={setImageFile}
-            onGenerate={handleGenerate}
-            taskStatus={taskStatus}
-            recommendedModels={inspirationModels}
-            historyModels={history}
-            onModelSelect={handleModelSelect}
-            onDeleteModel={handleDeleteModel}
-          />
-        </div>
-        <div className="lg:col-span-4">
-          <PreviewPanel 
-            taskStatus={taskStatus} 
-            displayedModel={displayedModel} 
-            onSaveModel={handleSaveModel}
-            onDeleteModel={handleDeleteModel}
-            isSaved={isModelSaved}
-          />
+    <div className="min-h-screen bg-[#F0F2F5] flex flex-col">
+      <Header onLogout={handleLogoutAndClear} userEmail={userEmail} />
+      <main className="flex-grow container mx-auto p-4 lg:p-6">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-full">
+          <div className="lg:col-span-3">
+            <GenerationPanel
+              mode={mode}
+              onModeChange={setMode}
+              prompt={prompt}
+              onPromptChange={setPrompt}
+              imageFile={imageFile}
+              onImageFileChange={setImageFile}
+              onGenerate={handleGenerate}
+              onCancel={handleCancelGeneration}
+              taskStatus={taskStatus}
+              recommendedModels={recommendedModels}
+              historyModels={userHistory}
+              onModelSelect={setDisplayedModel}
+              onDeleteModel={handleDeleteModel}
+            />
+          </div>
+          <div className="lg:col-span-6">
+            <PreviewPanel
+                taskStatus={taskStatus}
+                displayedModel={displayedModel}
+                onSaveModel={handleSaveModel}
+                onDeleteModel={handleDeleteModel}
+                isSaved={isModelSaved}
+            />
+          </div>
+          <div className="lg:col-span-3">
+            <ParamsPanel
+              parameters={parameters}
+              onParametersChange={setParameters}
+              mode={mode}
+            />
+          </div>
         </div>
       </main>
     </div>

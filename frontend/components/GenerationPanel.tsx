@@ -11,6 +11,7 @@ interface GenerationPanelProps {
   imageFile: File | null;
   onImageFileChange: (file: File | null) => void;
   onGenerate: () => void;
+  onCancel: () => void; // 新增：中断生成的回调函数
   taskStatus: TaskStatus;
   recommendedModels: Model[];
   historyModels: Model[];
@@ -67,8 +68,35 @@ const ModelThumbnail: React.FC<ModelThumbnailProps> = ({ model, onSelect, onDele
     );
 };
 
+// 新增：辅助函数，用于将秒格式化为用户友好的字符串
+const formatRemainingTime = (seconds?: number): string => {
+  if (seconds === undefined || seconds < 0) {
+    return '计算中...';
+  }
+  if (seconds === 0) {
+    return '即将完成...';
+  }
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  if (minutes > 0) {
+    return `${minutes}分 ${remainingSeconds}秒`;
+  }
+  return `${remainingSeconds}秒`;
+};
 
-const GenerationPanel: React.FC<GenerationPanelProps> = ({ mode, onModeChange, prompt, onPromptChange, imageFile, onImageFileChange, onGenerate, taskStatus, recommendedModels, historyModels, onModelSelect, onDeleteModel }) => {
+// 改进：为生成过程提供动态、信息丰富的状态消息
+const PROCESSING_MESSAGES = [
+  '正在初始化生成环境...',
+  'AI正在解析您的指令...',
+  '构建基础模型结构...',
+  '雕刻核心模型细节...',
+  '生成高分辨率纹理...',
+  '进行最终渲染和优化...',
+  '即将完成，请稍候...'
+];
+
+
+const GenerationPanel: React.FC<GenerationPanelProps> = ({ mode, onModeChange, prompt, onPromptChange, imageFile, onImageFileChange, onGenerate, onCancel, taskStatus, recommendedModels, historyModels, onModelSelect, onDeleteModel }) => {
     
   const isProcessing = taskStatus.status === 'processing';
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -79,6 +107,10 @@ const GenerationPanel: React.FC<GenerationPanelProps> = ({ mode, onModeChange, p
   const [recommendedPage, setRecommendedPage] = useState(0);
   const [historyPage, setHistoryPage] = useState(0);
   const ITEMS_PER_PAGE = 3;
+
+  // 改进：添加状态以循环显示处理消息
+  const [currentMessageIndex, setCurrentMessageIndex] = useState(0);
+
 
   // 新增：计算分页数据
   const recommendedTotalPages = Math.ceil((recommendedModels?.length || 0) / ITEMS_PER_PAGE);
@@ -95,36 +127,21 @@ const GenerationPanel: React.FC<GenerationPanelProps> = ({ mode, onModeChange, p
   );
 
   const StatusIndicator = () => {
-      switch (taskStatus.status) {
-          case 'processing':
-              return (
-                  <div className="flex items-center space-x-1.5 bg-blue-100 text-blue-700 text-xs font-medium px-2 py-1 rounded-full animate-fade-in">
-                      <SpinnerIcon className="w-3 h-3 animate-spin" />
-                      <span>生成中</span>
-                  </div>
-              );
-          case 'completed':
-              return (
-                  <div className="flex items-center space-x-1.5 bg-green-100 text-green-700 text-xs font-medium px-2 py-1 rounded-full animate-fade-in">
-                      <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-                      <span>已就绪</span>
-                  </div>
-              );
-          case 'failed':
-               return (
-                  <div className="flex items-center space-x-1.5 bg-red-100 text-red-700 text-xs font-medium px-2 py-1 rounded-full animate-fade-in">
-                      <XCircleIcon className="w-4 h-4" />
-                      <span>生成失败</span>
-                  </div>
-              );
-          default: // idle
-              return (
-                  <div className="flex items-center space-x-1.5 bg-gray-100 text-gray-700 text-xs font-medium px-2 py-1 rounded-full animate-fade-in">
-                      <span className="w-2 h-2 bg-gray-400 rounded-full"></span>
-                      <span>空闲</span>
-                  </div>
-              );
-      }
+    if (taskStatus.status === 'processing') {
+        return (
+            <div className="flex items-center space-x-1.5 bg-blue-100 text-blue-700 text-xs font-medium px-2 py-1 rounded-full animate-fade-in">
+                <SpinnerIcon className="w-3 h-3 animate-spin" />
+                <span>模型生成中</span>
+            </div>
+        );
+    }
+
+    return (
+        <div className="flex items-center space-x-1.5 bg-green-100 text-green-700 text-xs font-medium px-2 py-1 rounded-full animate-fade-in">
+            <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+            <span>模型已就绪</span>
+        </div>
+    );
   };
 
   useEffect(() => {
@@ -142,6 +159,23 @@ const GenerationPanel: React.FC<GenerationPanelProps> = ({ mode, onModeChange, p
       }
     };
   }, [imageFile]);
+
+  // 改进：添加一个 effect 来循环显示处理消息
+  useEffect(() => {
+      let messageInterval: number | undefined;
+      if (isProcessing) {
+          setCurrentMessageIndex(0); // 在新任务开始时重置
+          messageInterval = window.setInterval(() => {
+              setCurrentMessageIndex(prevIndex => (prevIndex + 1) % PROCESSING_MESSAGES.length);
+          }, 8000); // 每8秒更换一次消息
+      }
+      return () => {
+          if (messageInterval) {
+              clearInterval(messageInterval);
+          }
+      };
+  }, [isProcessing]);
+
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -230,14 +264,24 @@ const GenerationPanel: React.FC<GenerationPanelProps> = ({ mode, onModeChange, p
                 </>
             )}
 
-            <button
-                onClick={onGenerate}
-                disabled={isProcessing || (mode === GenerationMode.TEXT_TO_3D && prompt.trim() === '') || (mode === GenerationMode.IMAGE_TO_3D && !imageFile)}
-                className="w-full mt-4 py-3 text-base font-semibold text-white bg-blue-500 rounded-lg flex items-center justify-center space-x-2 hover:bg-blue-600 transition-all duration-300 disabled:bg-gray-300 disabled:cursor-not-allowed transform hover:scale-105 disabled:transform-none"
-            >
-                <WandIcon className="w-5 h-5" />
-                <span>生成模型</span>
-            </button>
+            {isProcessing ? (
+                <button
+                    onClick={onCancel}
+                    className="w-full mt-4 py-3 text-base font-semibold text-white bg-red-500 rounded-lg flex items-center justify-center space-x-2 hover:bg-red-600 transition-all duration-300"
+                >
+                    <XCircleIcon className="w-5 h-5" />
+                    <span>中断生成</span>
+                </button>
+            ) : (
+                <button
+                    onClick={onGenerate}
+                    disabled={(mode === GenerationMode.TEXT_TO_3D && prompt.trim() === '') || (mode === GenerationMode.IMAGE_TO_3D && !imageFile)}
+                    className="w-full mt-4 py-3 text-base font-semibold text-white bg-blue-500 rounded-lg flex items-center justify-center space-x-2 hover:bg-blue-600 transition-all duration-300 disabled:bg-gray-300 disabled:cursor-not-allowed transform hover:scale-105 disabled:transform-none"
+                >
+                    <WandIcon className="w-5 h-5" />
+                    <span>生成模型</span>
+                </button>
+            )}
             
             {/* === 错误提示 === */}
             {taskStatus.status === 'failed' && (
@@ -277,11 +321,13 @@ const GenerationPanel: React.FC<GenerationPanelProps> = ({ mode, onModeChange, p
                   <div className="mt-4 space-y-2 text-sm text-gray-500">
                       <div className="flex items-center space-x-2">
                           <TimeIcon className="w-5 h-5"/>
-                          <span>预计剩余时间: {taskStatus.eta ? `${taskStatus.eta}秒` : '计算中...'}</span>
+                          {/* 改进：使用格式化函数显示用户友好的剩余时间 */}
+                          <span>预计剩余时间: {formatRemainingTime(taskStatus.eta)}</span>
                       </div>
                       <div className="flex items-center space-x-2">
                           <AiIcon className="w-5 h-5"/>
-                          <span>{taskStatus.message || 'AI正在处理您的模型细节...'}</span>
+                          {/* 改进：显示动态的、信息丰富的状态消息 */}
+                          <span>{PROCESSING_MESSAGES[currentMessageIndex]}</span>
                       </div>
                   </div>
               </div>

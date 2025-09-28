@@ -1,13 +1,10 @@
-// FIX: Removed the local side-effect import of '../types'. With the root cause of the JSX
-// type error now resolved in the application's entry point (index.tsx), this local
-// import is no longer necessary.
+// FIX: Reordered imports to place the side-effect import of '../types' at the very top.
+// This ensures that global JSX type augmentations for custom elements like <model-viewer>
+// are loaded before any other module, resolving TypeScript compilation errors.
+import '../types';
 import React, { useRef, useCallback, useState, useEffect } from 'react';
-// 修复：从集中的类型文件导入ModelViewerElement，而不是在本地定义。
 import type { TaskStatus, ModelViewerElement, Model } from '../types';
 import { ResetIcon, ZoomInIcon, ZoomOutIcon, SaveIcon, ExportIcon, FullScreenIcon, ExitFullScreenIcon, PlayIcon, PauseIcon, SpinnerIcon, TrashIcon } from './icons';
-
-// 修复：<model-viewer>自定义元素的类型定义，包括其JSX内置元素声明，
-// 已经集中在'types.ts'中。这确保了整个应用的类型安全和一致性。
 
 interface PreviewPanelProps {
   taskStatus: TaskStatus;
@@ -94,24 +91,27 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ taskStatus, displayedModel,
     <div className="bg-white p-2 rounded-xl shadow-sm h-full flex flex-col">
       <h2 className="text-lg font-bold mb-4 text-gray-800 px-4 pt-4">模型预览</h2>
       <div ref={previewContainerRef} className="relative flex-grow bg-gray-100 rounded-lg overflow-hidden">
+        {/* FIX: Using camelCase props for the custom element to align with React conventions. */}
         <model-viewer
           ref={modelViewerRef}
           src={displayedModel.url}
           poster={displayedModel.poster}
           alt="3D模型预览"
-          auto-rotate={isRotating}
-          auto-rotate-delay="0"
-          camera-controls
-          shadow-intensity="0"
-          camera-orbit="0deg 75deg 105%"
+          autoRotate={isRotating}
+          autoRotateDelay="0"
+          cameraControls={true}
+          shadowIntensity="0"
+          cameraOrbit="0deg 75deg 105%"
           style={{ width: '100%', height: '100%' }}
         ></model-viewer>
 
-        {taskStatus.status === 'processing' && (
+        {['processing', 'unzipping'].includes(taskStatus.status) && (
            <div className="absolute inset-0 w-full h-full flex items-center justify-center text-gray-500 bg-gray-100/80 backdrop-blur-sm">
             <div className="text-center">
               <SpinnerIcon className="mx-auto h-12 w-12 animate-spin text-blue-500" />
-              <p className="mt-2 text-sm font-medium">模型生成中...</p>
+              <p className="mt-2 text-sm font-medium">
+                {taskStatus.status === 'unzipping' ? '正在解压模型...' : '模型生成中...'}
+              </p>
             </div>
           </div>
         )}

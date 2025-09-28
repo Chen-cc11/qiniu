@@ -3,7 +3,8 @@
 // This single fix should resolve all JSX-related errors across the application.
 
 // 修复：导入React使其类型可用于模块增强和JSX内置元素定义。这解决了找不到'react'模块以及无法识别'DetailedHTMLProps'等类型的问题。
-import * as React from 'react';
+// FIX: Changed import to resolve module resolution issue affecting JSX type augmentation.
+import React from 'react';
 
 // 修复：扩展React的CSSProperties以允许自定义CSS属性（例如 '--property'）。
 // 这解决了在样式对象中使用自定义属性时出现的TypeScript错误。
@@ -69,13 +70,24 @@ export interface Model {
 export type TaskStatus = 
     | { status: 'idle' }
     | { status: 'processing'; progress?: number; eta?: number; message?: string }
-    | { status: 'completed'; model: Model } // 更新为使用新的Model接口
+    | { status: 'unzipping' } // 新增：为模型提取阶段添加新状态
+    | { status: 'completed'; model: Model }
     | { status: 'failed'; error: string };
 
 // 修复：集中并扩展 <model-viewer> 自定义元素的类型定义。
 // 这确保了它的属性在整个应用中都能被TypeScript识别。
+// FIX: Expanded interface to include properties reflected from attributes for completeness.
 export interface ModelViewerElement extends HTMLElement {
   cameraOrbit: string;
+  src?: string;
+  poster?: string;
+  alt?: string;
+  reveal?: 'auto' | 'interaction' | 'manual';
+  autoRotate?: boolean;
+  cameraControls?: boolean;
+  shadowIntensity?: string;
+  disableZoom?: boolean;
+  autoRotateDelay?: string;
 }
 
 // 修复：集中<model-viewer>自定义元素的类型定义。
@@ -84,22 +96,19 @@ export interface ModelViewerElement extends HTMLElement {
 declare global {
   namespace JSX {
     interface IntrinsicElements {
-      'model-viewer': React.DetailedHTMLProps<
-        React.HTMLAttributes<ModelViewerElement> & {
+      // FIX: Simplified the JSX type definition for the 'model-viewer' custom element by using `React.HTMLAttributes` directly instead of `React.DetailedHTMLProps`. This is a more robust approach for custom element typing and should resolve the "Property 'model-viewer' does not exist on type 'JSX.IntrinsicElements'" error.
+      'model-viewer': React.HTMLAttributes<ModelViewerElement> & {
           src?: string;
           poster?: string;
           reveal?: 'auto' | 'interaction' | 'manual';
           alt?: string;
-          'auto-rotate'?: boolean;
-          'camera-controls'?: boolean;
-          'shadow-intensity'?: string;
-          'camera-orbit'?: string;
-          'disable-zoom'?: boolean;
-          // 修复：添加在PreviewPanel.tsx中使用的缺失的auto-rotate-delay属性
-          'auto-rotate-delay'?: string;
-        },
-        ModelViewerElement
-      >;
+          autoRotate?: boolean;
+          cameraControls?: boolean;
+          shadowIntensity?: string;
+          cameraOrbit?: string;
+          disableZoom?: boolean;
+          autoRotateDelay?: string;
+        };
     }
   }
 }
